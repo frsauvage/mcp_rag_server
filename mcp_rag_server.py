@@ -66,6 +66,27 @@ logger = logging.getLogger("mcp_rag_server")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # ---------------------------------------------------------------------------
+# Utilitaires
+# ---------------------------------------------------------------------------
+
+def _print_log_errors(log_file: Path):
+    """Affiche uniquement les lignes ERROR du fichier de log."""
+    if not log_file.exists():
+        return
+    try:
+        errors = []
+        with open(log_file, "r", encoding="utf-8") as f:
+            for line in f:
+                if "ERROR" in line or "error" in line.lower():
+                    errors.append(line.strip())
+        if errors:
+            print("\n⚠️  Erreurs détectées dans les logs :")
+            for error in errors[-10:]:  # Afficher les 10 dernières erreurs
+                print(f"  {error}")
+    except Exception as e:
+        pass  # Silencieux si lecture échoue
+
+# ---------------------------------------------------------------------------
 # Initialisation des composants
 # ---------------------------------------------------------------------------
 
@@ -383,6 +404,9 @@ if __name__ == "__main__":
             stats = store.stats()
             print(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
             print(f"Stockage : {stats['persist_dir']}")
+            
+            # Afficher les erreurs du log
+            _print_log_errors(LOG_DIR / "mcp_rag_server.log")
         asyncio.run(run_index())
 
     elif sys.argv[1] == "--query":

@@ -31,16 +31,26 @@ logger = logging.getLogger("mcp_client_llm")
 PATH_CA = os.getenv("PATH_CA", "")
 print(f"PATH_CA={PATH_CA}")
 
-# Utiliser le certificat personnalisé si fourni, sinon utiliser les certificats par défaut
+# Déterminer la configuration SSL
+use_custom_ca = False
 if PATH_CA:
-    os.environ["SSL_CERT_FILE"] = PATH_CA
-    os.environ["REQUESTS_CA_BUNDLE"] = PATH_CA
-    verify_ssl = PATH_CA
-else:
-    # Pour Ollama local ou certificats par défaut
-    verify_ssl = True
+    ca_path = Path(PATH_CA)
+    if ca_path.exists():
+        os.environ["SSL_CERT_FILE"] = PATH_CA
+        os.environ["REQUESTS_CA_BUNDLE"] = PATH_CA
+        use_custom_ca = True
+        print(f"Using custom CA certificate: {PATH_CA}")
+    else:
+        logger.warning(f"CA certificate not found at {PATH_CA}, using system certificates")
+        print(f"Warning: CA certificate not found at {PATH_CA}")
 
-client = httpx.Client(verify=verify_ssl)
+# Définir la configuration de vérification SSL
+# True = utiliser les certificats système
+# Un chemin = utiliser ce certificat personnalisé
+http_verify = PATH_CA if use_custom_ca else True
+print(f"SSL verification mode: {'custom CA' if use_custom_ca else 'system certificates'}")
+
+client = httpx.Client(verify=http_verify)
 
 # Configuration
 API_KEY = os.getenv("API_KEY", "")
@@ -72,7 +82,7 @@ llm_client = ChatOpenAI(
     api_key=API_KEY,
     base_url=LLM_BASE_URL,
     temperature=0,
-    http_async_client=httpx.AsyncClient(verify=verify_ssl),
+    http_async_client=httpx.AsyncClient(verify=http_verify),
 )
 
 print("MistralSDK client created")
@@ -80,12 +90,31 @@ print("MistralSDK client created")
 mcp_rag_client_embed.py — Client embedding compatible OpenAI
 """
 
+EMBED_BASE_URL = os.getenv("EMBED_BASE_URL", "")
+EMBED_MODEL = os.getenv("EMBED_MODEL", None)
+
+print(f"EMBED_BASE_URL={EMBED_BASE_URL}")
+print(f"EMBED_MODEL={EMBED_MODEL}")
+
 embed_client = OpenAI(
     api_key=os.environ["API_KEY"],
-    base_url=os.environ["EMBED_BASE_URL"],
+    base_url=EMBED_BASE_URL,
     http_client=client
 )
 
-EMBED_MODEL = os.getenv("EMBED_MODEL", None)
+# Test de connexion à l'API embedding au démarrage
+try:
+    print("Test de connexion à l'API embedding...")
+    test_response = embed_client.embeddings.create(
+        model=EMBED_MODEL,
+        input=["test"]
+    )
+    print(f"✓ Embedding OK ({EMBED_MODEL})")
+except Exception as e:
+    logger.error(f"ERREUR: Connexion au service d'embedding échouée!")
+    logger.error(f"  URL: {EMBED_BASE_URL}")
+    logger.error(f"  Modèle: {EMBED_MODEL}")
+    logger.error(f"  Détail: {e}")
+    print(f"✗ Erreur embedding: {e}")
 
-print("OpenAI embeded client created")
+print("OpenAI embedded client created")

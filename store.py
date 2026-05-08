@@ -180,7 +180,8 @@ class CodeStore:
                 batch = file_chunks[i : i + EMBED_BATCH_SIZE]
                 embeddings = self._embed_with_retry([c.content for c in batch])
                 if embeddings is None:
-                    logger.error(f"Batch échoué pour {file_path}, fichier ignoré")
+                    logger.error(f"❌ Batch échoué pour {file_path} ({len(batch)} chunks) — fichier ignoré")
+                    print(f"  ❌ Erreur: Embedding échoué pour {file_path}")
                     break
                 self._collection.upsert(
                     ids=[c.chunk_id for c in batch],
@@ -190,11 +191,13 @@ class CodeStore:
                 )
                 file_embedded += len(batch)
                 total += len(batch)
-                print(f"  {total} chunks indexés")
+                print(f"  ✓ {total} chunks indexés")
 
             # Hash sauvegardé uniquement si TOUS les chunks du fichier sont embeddés
             if file_embedded == len(file_chunks):
                 self._save_file_hash(file_path, file_chunks[0].file_hash)
+            elif file_embedded > 0:
+                logger.warning(f"Indexation partielle pour {file_path}: {file_embedded}/{len(file_chunks)} chunks")
 
         return total
 
