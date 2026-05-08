@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-rag-server"
-version = "2.1.5"
+version = "2.1.6"
 description = "Serveur MCP avec RAG complet sur codebase Python/C++ (chunking syntaxique, ChromaDB, mistral-embed)"
 requires-python = ">=3.11"
 
@@ -46,7 +46,7 @@ py-modules = [
     "embedder",
     "indexer",
     "mcp_rag_server",
-    "mcp_client_llm",
+    "mcp_rag_client_llm",
     "pdf_chunker",
     "retriever",
     "store",

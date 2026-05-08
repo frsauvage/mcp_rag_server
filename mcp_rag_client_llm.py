@@ -26,19 +26,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("mcp_client_llm")
 
-# Initialisation du client HTTP avec le certificat de sécurité
+# Initialisation du client HTTP avec le certificat de sécurité (optionnel)
 # Configuration
 PATH_CA = os.getenv("PATH_CA", "")
 print(f"PATH_CA={PATH_CA}")
-if not PATH_CA:
-    logger.error("error PATH_CA!!")
-    exit(1)
 
-# Dire à httpx/certifi d'utiliser ton CA — pas de http_client du tout
-os.environ["SSL_CERT_FILE"] = PATH_CA
-os.environ["REQUESTS_CA_BUNDLE"] = PATH_CA
+# Utiliser le certificat personnalisé si fourni, sinon utiliser les certificats par défaut
+if PATH_CA:
+    os.environ["SSL_CERT_FILE"] = PATH_CA
+    os.environ["REQUESTS_CA_BUNDLE"] = PATH_CA
+    verify_ssl = PATH_CA
+else:
+    # Pour Ollama local ou certificats par défaut
+    verify_ssl = True
 
-client = httpx.Client(verify=PATH_CA)
+client = httpx.Client(verify=verify_ssl)
 
 # Configuration
 API_KEY = os.getenv("API_KEY", "")
@@ -70,7 +72,7 @@ llm_client = ChatOpenAI(
     api_key=API_KEY,
     base_url=LLM_BASE_URL,
     temperature=0,
-    http_async_client=httpx.AsyncClient(verify=PATH_CA),
+    http_async_client=httpx.AsyncClient(verify=verify_ssl),
 )
 
 print("MistralSDK client created")

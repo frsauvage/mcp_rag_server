@@ -399,13 +399,15 @@ if __name__ == "__main__":
             history: list[dict] = []
             MAX_HISTORY_TURNS = int(os.getenv("MAX_HISTORY_TURNS", "5"))
 
+            default_top_k = int(os.getenv("RETRIEVAL_TOP_K", "10"))
+
             while True:
                 question = input("\n  Question (vide pour quitter) : ").strip()
                 if not question:
                     break
 
                 t0 = time.perf_counter()
-                top_k = args.get("top_k", 10)
+                top_k = default_top_k
 
                 prompt, nb_chunks = await asyncio.to_thread(
                     retriever.build_prompt, question, top_k, None, False
