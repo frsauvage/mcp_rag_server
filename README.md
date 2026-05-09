@@ -53,8 +53,8 @@ cp .env.example .env
 ## 🖥️ Utilisation en ligne de commande
 
 ```bash
-# Indexer une codebase (à faire avant toute query)
-python mcp_rag_server.py --index D:\mon\projet
+# Indexer une ou plusieurs codebases (à faire avant toute query)
+python mcp_rag_server.py --index D:\mon\projet docs
 
 # Interroger la codebase (mode interactif avec mémoire)
 python mcp_rag_server.py --query
@@ -89,7 +89,7 @@ python mcp_rag_server.py
 
 ## 📄 Documentation PDF
 
-Placez vos PDFs de documentation (specs, wiki, architecture) dans le répertoire `docs/` à la racine du projet :
+Placez vos PDFs de documentation (specs, wiki, architecture) dans le répertoire `docs/` uniquement si vous souhaitez centraliser les fichiers. Ce n’est PAS obligatoire : l’indexation fonctionne sur tout répertoire que vous passez en argument à `--index`.
 
 ```
 mcp_rag_server/
@@ -100,7 +100,7 @@ mcp_rag_server/
     `-- ...
 ```
 
-Les PDFs seront indexés automatiquement lors du prochain `--index`. Le chunking se fait par section selon la table des matières (TOC) du PDF, avec le numéro de page en métadonnée pour citer les sources dans les réponses LLM.
+Les PDFs seront indexés si le répertoire contenant `docs/` est passé à `--index`, ou si vous passez explicitement `docs` comme argument. Le chunking se fait par section selon la table des matières (TOC), avec le numéro de page en métadonnée pour citer les sources dans les réponses LLM.
 
 > 💡 Les PDFs doivent être natifs (générés depuis Word, Confluence, wiki...), pas des scans.
 

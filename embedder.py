@@ -3,22 +3,23 @@ embedder.py — Gestion des embeddings (appel API + retry + truncation)
 """
 from __future__ import annotations
 
+import os
 import logging
 import time
 from typing import List, Optional
 
 from mcp_rag_client_llm import embed_client, EMBED_MODEL
 
+MAX_EMBED_CHARS = int(os.getenv("MAX_EMBED_CHARS", "2000"))  # Limite stricte pour nomic-embed-text
+
 logger = logging.getLogger("embedder")
 
 
 def embed_texts(texts: List[str], max_retries: int = 3) -> Optional[List[List[float]]]:
-    """
-    Calcule les embeddings d'une liste de textes.
-    Appel unitaire pour isoler les erreurs par chunk.
-    """
     results = []
     for text in texts:
+        if not _is_embed_size_valid(text):
+            return None
         embedding = _embed_one(text, max_retries)
         if embedding is None:
             return None
@@ -27,7 +28,8 @@ def embed_texts(texts: List[str], max_retries: int = 3) -> Optional[List[List[fl
 
 
 def embed_query(question: str, max_retries: int = 3) -> Optional[List[float]]:
-    """Calcule l'embedding d'une question (usage retrieval)."""
+    if not _is_embed_size_valid(question):
+        return None
     return _embed_one(question, max_retries)
 
 
@@ -55,3 +57,13 @@ def _embed_one(text: str, max_retries: int) -> Optional[List[float]]:
     
     logger.error(f"Échec définitif d'embedding après {max_retries} tentatives pour {len(text)} chars")
     return None
+
+
+def _is_embed_size_valid(text: str) -> bool:
+    if len(text) <= MAX_EMBED_CHARS:
+        return True
+    logger.error(
+        f"Chunk trop long pour l'embedding ({len(text)} > {MAX_EMBED_CHARS} chars). "
+        "Vérifie le chunker ou ajuste MAX_EMBED_CHARS."
+    )
+    return False

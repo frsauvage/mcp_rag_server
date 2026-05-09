@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
@@ -18,6 +19,7 @@ from typing import List, Optional
 logger = logging.getLogger("pdf_chunker")
 
 MIN_SECTION_CHARS = 100  # Section trop courte → ignorée
+MAX_CHUNK_CHARS = 2000   # Limite locale pour nomic-embed-text (~3072 chars encore rejeté)
 
 @dataclass
 class DocChunk:
@@ -106,18 +108,23 @@ class PdfChunker:
                 logger.debug(f"Section ignorée (trop courte) : {title}")
                 continue
 
-            header = f"# Document : {relative}\n# Section : {title} (p. {page_start}–{page_end})\n\n"
-            chunks.append(DocChunk(
-                content=header + text,
-                file_path=str(path),
-                relative_path=relative,
-                chunk_type="section",
-                symbol_name=title,
-                page_start=page_start,
-                page_end=page_end,
-                level=level,
-                file_hash=fhash,
-            ))
+            text_pieces = self._split_text(text, MAX_CHUNK_CHARS)
+            for part_index, piece in enumerate(text_pieces, start=1):
+                part_title = title
+                if len(text_pieces) > 1:
+                    part_title = f"{title} (part {part_index}/{len(text_pieces)})"
+                header = f"# Document : {relative}\n# Section : {part_title} (p. {page_start}–{page_end})\n\n"
+                chunks.append(DocChunk(
+                    content=header + piece,
+                    file_path=str(path),
+                    relative_path=relative,
+                    chunk_type="section",
+                    symbol_name=part_title,
+                    page_start=page_start,
+                    page_end=page_end,
+                    level=level,
+                    file_hash=fhash,
+                ))
 
         return chunks
 
@@ -129,18 +136,24 @@ class PdfChunker:
             text = page.get_text("text").strip()
             if len(text) < MIN_SECTION_CHARS:
                 continue
-            header = f"# Document : {relative}\n# Page {page_num + 1}\n\n"
-            chunks.append(DocChunk(
-                content=header + text,
-                file_path=str(path),
-                relative_path=relative,
-                chunk_type="page",
-                symbol_name=f"Page {page_num + 1}",
-                page_start=page_num + 1,
-                page_end=page_num + 1,
-                level=0,
-                file_hash=fhash,
-            ))
+
+            text_pieces = self._split_text(text, MAX_CHUNK_CHARS)
+            for part_index, piece in enumerate(text_pieces, start=1):
+                part_title = f"Page {page_num + 1}"
+                if len(text_pieces) > 1:
+                    part_title = f"Page {page_num + 1} (part {part_index}/{len(text_pieces)})"
+                header = f"# Document : {relative}\n# {part_title}\n\n"
+                chunks.append(DocChunk(
+                    content=header + piece,
+                    file_path=str(path),
+                    relative_path=relative,
+                    chunk_type="page",
+                    symbol_name=part_title,
+                    page_start=page_num + 1,
+                    page_end=page_num + 1,
+                    level=0,
+                    file_hash=fhash,
+                ))
         return chunks
 
     def _extract_text(self, doc, page_start: int, page_end: int) -> str:
@@ -149,6 +162,47 @@ class PdfChunker:
         for i in range(page_start, min(page_end + 1, doc.page_count)):
             parts.append(doc[i].get_text("text"))
         return "\n\n".join(parts)
+
+    def _split_text(self, text: str, max_chars: int) -> List[str]:
+        """Découpe un texte long en morceaux plus petits, sans couper les paragraphes si possible."""
+        if len(text) <= max_chars:
+            return [text]
+
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", text) if p.strip()]
+        chunks: List[str] = []
+        current = []
+        current_len = 0
+
+        def flush_current():
+            if current:
+                chunks.append("\n\n".join(current).strip())
+
+        for paragraph in paragraphs:
+            if len(paragraph) > max_chars:
+                flush_current()
+                current = []
+                current_len = 0
+                chunks.extend(self._split_long_paragraph(paragraph, max_chars))
+                continue
+
+            if current_len + len(paragraph) + (2 if current else 0) <= max_chars:
+                if current:
+                    current.append(paragraph)
+                    current_len += len(paragraph) + 2
+                else:
+                    current.append(paragraph)
+                    current_len += len(paragraph)
+            else:
+                flush_current()
+                current = [paragraph]
+                current_len = len(paragraph)
+
+        flush_current()
+        return [chunk for chunk in chunks if len(chunk) >= MIN_SECTION_CHARS]
+
+    def _split_long_paragraph(self, paragraph: str, max_chars: int) -> List[str]:
+        """Découpe un paragraphe trop long en morceaux de taille max_chars."""
+        return [paragraph[i:i + max_chars].strip() for i in range(0, len(paragraph), max_chars) if paragraph[i:i + max_chars].strip()]
 
 
 _pdf_chunker = PdfChunker()

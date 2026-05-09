@@ -24,7 +24,7 @@ from chromadb.config import Settings
 # Import du client embedding depuis le module dédié
 from mcp_rag_client_llm import embed_client, EMBED_MODEL
 
-from chunker import CodeChunk
+from code_chunker import CodeChunk
 from embedder import embed_texts, embed_query
 
 logger = logging.getLogger("store")

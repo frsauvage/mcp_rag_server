@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
 import os
+import sys
+import io
 import logging
 from pathlib import Path
 import httpx
@@ -9,21 +12,28 @@ from openai import OpenAI
 llm_client = None
 
 # Charger les variables d'environnement depuis le fichier .env
-load_dotenv()
+load_dotenv(encoding='utf-8')
 
 # Configuration du logging
 PATH_LOGS = os.getenv("PATH_LOGS", "")
 LOG_DIR = Path(PATH_LOGS)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / "mcp_client_llm.log"
+
+
+stdout_handler = logging.StreamHandler(
+    io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
+        logging.FileHandler(LOG_FILE, encoding='utf-8'),
+        stdout_handler,
     ]
 )
+
 logger = logging.getLogger("mcp_client_llm")
 
 # Initialisation du client HTTP avec le certificat de sécurité (optionnel)

@@ -17,11 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
-from pdf_chunker import chunk_pdf, PDF_EXTENSIONS
-from chunker import chunk_file, CodeChunk, ALL_EXTENSIONS
+from chunker import chunk_file, ALL_EXTENSIONS, CodeChunk
 from store import CodeStore
-
-ALL_EXTENSIONS_WITH_PDF = ALL_EXTENSIONS | PDF_EXTENSIONS
 
 logger = logging.getLogger("indexer")
 
@@ -90,56 +87,65 @@ class Indexer:
         force_reindex: bool = False,
     ) -> IndexReport:
         """
-        Indexe tous les fichiers de code d'un répertoire.
+        Alias pour indexer un seul répertoire.
+        """
+        return await self.index_directories(
+            directories=[directory],
+            recursive=recursive,
+            force_reindex=force_reindex,
+        )
+
+    async def index_directories(
+        self,
+        directories: list[str],
+        recursive: bool = True,
+        force_reindex: bool = False,
+    ) -> IndexReport:
+        """
+        Indexe plusieurs répertoires distincts.
 
         Args:
-            directory    : Chemin racine de la codebase
+            directories  : Liste de répertoires à scanner
             recursive    : Scanner les sous-répertoires
             force_reindex: Vider la base avant d'indexer (réindexation complète)
 
         Returns:
             IndexReport avec le détail de l'opération
         """
-        dir_path = Path(directory).resolve()
-        if not dir_path.exists():
-            raise ValueError(f"Répertoire introuvable : {directory}")
+        resolved_dirs = [Path(d).resolve() for d in directories]
+        missing = [str(d) for d in resolved_dirs if not d.exists()]
+        if missing:
+            raise ValueError(f"Répertoires introuvables : {', '.join(missing)}")
 
-        report = IndexReport(directory=str(dir_path))
+        report = IndexReport(directory=", ".join(str(d) for d in resolved_dirs))
 
         if force_reindex:
             print("force_reindex=True → vidage de la base")
             self.store.clear()
 
-        # 1. Scan des fichiers
-        files = self._scan_files(dir_path, recursive)
-        report.files_found = len(files)
-        print(f"Scan : {len(files)} fichiers trouvés dans {dir_path}")
-
-        if not files:
-            return report
-
-        # 2. Chunking (en thread pour ne pas bloquer l'event loop)
         all_chunks: List[CodeChunk] = []
-        for file_path in files:
-            try:
-                if file_path.suffix.lower() == ".pdf":
-                    chunks = await asyncio.to_thread(chunk_pdf, file_path, dir_path)
-                else:
+        all_files: List[Path] = []
+
+        for dir_path in resolved_dirs:
+            files = self._scan_files(dir_path, recursive)
+            all_files.extend(files)
+            print(f"Scan : {len(files)} fichiers trouvés dans {dir_path}")
+
+            for file_path in files:
+                try:
                     chunks = await asyncio.to_thread(chunk_file, file_path, dir_path)
                     all_chunks.extend(c for c in (chunks or []) if c is not None)
+                except Exception as e:
+                    logger.warning(f"Chunking échoué pour {file_path}: {e}")
+                    report.failed_files.append(str(file_path))
 
-            except Exception as e:
-                logger.warning(f"Chunking échoué pour {file_path}: {e}")
-                report.failed_files.append(str(file_path))
-
+        report.files_found = len(all_files)
         report.chunks_generated = len(all_chunks)
         print(f"Chunking : {len(all_chunks)} chunks générés")
 
-        # 3. Indexation avec cache (délégué au store)
         embedded = await asyncio.to_thread(self.store.upsert_chunks, all_chunks)
         report.chunks_embedded = embedded
 
-        # Calculer les stats fichiers (approximation depuis les chunks)
         indexed_files = {c.file_path for c in all_chunks}
         report.files_indexed = len(indexed_files)
         report.files_cached = report.files_found - report.files_indexed - len(report.failed_files)
@@ -157,7 +163,7 @@ class Indexer:
         return [
             p for p in dir_path.glob(pattern)
             if p.is_file()
-            and p.suffix.lower() in ALL_EXTENSIONS_WITH_PDF
+            and p.suffix.lower() in ALL_EXTENSIONS
             and p.name.lower() not in EXCLUDED_FILENAMES
             and not any(part.lower() in EXCLUDED_DIRS for part in p.relative_to(dir_path).parts)
             and p.relative_to(dir_path).parts[0] not in EXCLUDED_ROOT_DIRS

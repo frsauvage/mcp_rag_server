@@ -40,7 +40,7 @@ from indexer import Indexer
 from retriever import Retriever
 from mcp_rag_client_llm import llm_client
 
-load_dotenv()
+load_dotenv(encoding='utf-8')
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -393,13 +393,13 @@ if __name__ == "__main__":
 
     elif sys.argv[1] == "--index":
         if len(sys.argv) < 3:
-            logger.error("Usage : python mcp_rag_server.py --index <repertoire>")
+            logger.error("Usage : python mcp_rag_server.py --index <repertoire> [<repertoire2> ...]")
             sys.exit(1)
-        directory = sys.argv[2]
+        directories = sys.argv[2:]
 
         async def run_index():
-            print(f"Indexation de {directory}...")
-            report = await indexer.index_directory(directory=directory, recursive=True)
+            print(f"Indexation de {', '.join(directories)}...")
+            report = await indexer.index_directories(directories=directories, recursive=True)
             print(report.summary())
             stats = store.stats()
             print(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")

@@ -12,7 +12,5 @@ venv/
 
 *.egg-info/
 
-INSTALL.md
-
 .claude/
 logs/
