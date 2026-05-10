@@ -19,7 +19,7 @@ from typing import List, Optional
 logger = logging.getLogger("pdf_chunker")
 
 MIN_SECTION_CHARS = 100  # Section trop courte → ignorée
-MAX_CHUNK_CHARS = 2000   # Limite locale pour nomic-embed-text (~3072 chars encore rejeté)
+MAX_CHUNK_CHARS = 1700   # Limite corps de chunk (header ajouté après, nomic~2000 chars max)
 
 @dataclass
 class DocChunk:

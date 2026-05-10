@@ -20,7 +20,7 @@ from typing import List, Optional
 logger = logging.getLogger("code_chunker")
 
 MIN_CHUNK_LINES = 3
-MAX_CHUNK_CHARS = 2000   # Limite pour nomic-embed-text
+MAX_CHUNK_CHARS = 1700   # Limite corps de chunk (header ajouté après)
 
 # ---------------------------------------------------------------------------
 # Structure de données commune
