@@ -58,13 +58,30 @@ class CodeStore:
     HASH_COLLECTION_NAME = "file_hashes"
 
     def __init__(self, persist_dir: str):
+        import shutil
         self.persist_dir = Path(persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
-        self._client = chromadb.PersistentClient(
-            path=str(self.persist_dir),
-            settings=Settings(anonymized_telemetry=False),
-        )
+        try:
+            self._client = chromadb.PersistentClient(
+                path=str(self.persist_dir),
+                settings=Settings(anonymized_telemetry=False),
+                tenant="default_tenant",
+                database="default_database",
+            )
+        except (chromadb.errors.InternalError, chromadb.errors.NotFoundError) as e:
+            if "malformed" in str(e).lower() or "not found" in str(e).lower():
+                logger.warning("Base ChromaDB corrompue ou tenant introuvable — suppression et recreation automatique.")
+                shutil.rmtree(self.persist_dir)
+                self.persist_dir.mkdir(parents=True, exist_ok=True)
+                self._client = chromadb.PersistentClient(
+                    path=str(self.persist_dir),
+                    settings=Settings(anonymized_telemetry=False),
+                    tenant="default_tenant",
+                    database="default_database",
+                )
+            else:
+                raise
 
         # Collection principale : embeddings + métadonnées
         # embedding_function=None : on fournit nos propres vecteurs via gpt-embed.
@@ -286,8 +303,15 @@ class CodeStore:
 
     def clear(self):
         """Vide complètement la base vectorielle."""
-        self._client.delete_collection(self.COLLECTION_NAME)
-        self._client.delete_collection(self.HASH_COLLECTION_NAME)
+        try:
+            self._client.delete_collection(self.COLLECTION_NAME)
+        except Exception:
+            pass  # Collection might not exist
+        try:
+            self._client.delete_collection(self.HASH_COLLECTION_NAME)
+        except Exception:
+            pass  # Collection might not exist
+        
         self._collection = self._client.get_or_create_collection(
             name=self.COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},

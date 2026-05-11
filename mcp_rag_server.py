@@ -378,13 +378,20 @@ if __name__ == "__main__":
     elif sys.argv[1] == "--debug-chunk":
         # python mcp_rag_server.py --debug-chunk chemin/fichier.py
         from chunker import chunk_file
+        from code_chunker import CodeChunk
+        from pdf_chunker import DocChunk
         path = Path(sys.argv[2])
         chunks = chunk_file(path, path.parent)
         print(f"{len(chunks)} chunks trouves dans {path.name}")
         for c in chunks:
-            print(f"  [{c.chunk_type:12}] {c.symbol_name:40} L{c.start_line}-{c.end_line}")
-            if c.symbols_referenced:
-                print(f"    -> refs: {', '.join(c.symbols_referenced)}")
+            if isinstance(c, CodeChunk):
+                print(f"  [{c.chunk_type:12}] {c.symbol_name:40} L{c.start_line}-{c.end_line}")
+                if hasattr(c, 'symbols_referenced') and c.symbols_referenced:
+                    print(f"    -> refs: {', '.join(c.symbols_referenced)}")
+            elif isinstance(c, DocChunk):
+                print(f"  [{c.chunk_type:12}] {c.symbol_name:40} P{c.page_start}-{c.page_end}")
+            else:
+                print(f"  [{c.chunk_type:12}] {c.symbol_name:40}")
 
     elif sys.argv[1] == "--clean":
         print("Vidage de la base vectorielle...")
