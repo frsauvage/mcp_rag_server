@@ -101,12 +101,12 @@ retriever = Retriever(store)
 # ---------------------------------------------------------------------------
 
 server = Server("llm-code-reader")
-print("Serveur MCP initialise")
+print("MCP Server initialized")
 
 
 async def _llm_call(prompt: str) -> str:
     if not llm_client:
-        return "Erreur : llm_client non configure."
+        return "Erreur : llm_client not configured."
     try:
         message = HumanMessage(content=prompt)
         response = await asyncio.to_thread(llm_client.invoke, [message])
@@ -387,9 +387,9 @@ if __name__ == "__main__":
                 print(f"    -> refs: {', '.join(c.symbols_referenced)}")
 
     elif sys.argv[1] == "--clean":
-        print("Vidage de la base vectorielle...")
+        print("Cleaning vectorial store...")
         store.clear()
-        print("Base videe.")
+        print("Base emptied.")
 
     elif sys.argv[1] == "--index":
         if len(sys.argv) < 3:
@@ -403,7 +403,7 @@ if __name__ == "__main__":
             print(report.summary())
             stats = store.stats()
             print(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
-            print(f"Stockage : {stats['persist_dir']}")
+            print(f"Storage : {stats['persist_dir']}")
             
             # Afficher les erreurs du log
             _print_log_errors(LOG_DIR / "mcp_rag_server.log")
