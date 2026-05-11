@@ -19,6 +19,8 @@ from typing import List, Optional
 
 logger = logging.getLogger("code_chunker")
 
+CODE_EXTENSIONS = {".py", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"}
+
 MIN_CHUNK_LINES = 3
 MAX_CHUNK_CHARS = 1700   # Limite corps de chunk (header ajouté après)
 
@@ -452,3 +454,16 @@ class CppChunker:
                 sig_bytes = source_bytes[node.start_byte:child.start_byte]
                 return sig_bytes.decode("utf-8", errors="replace").strip()
         return source_bytes[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+
+# ---------------------------------------------------------------------------
+# Instances des chunkers code
+# ---------------------------------------------------------------------------
+
+_python_chunker = PythonChunker()
+_cpp_chunker    = CppChunker()
+
+def chunk_code(path: Path, root: Path, ext: str) -> List[CodeChunk]:
+    if ext == ".py":
+        return _python_chunker.chunk(path, root)
+    else:
+        return _cpp_chunker.chunk(path, root)
