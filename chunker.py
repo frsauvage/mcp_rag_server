@@ -3,15 +3,14 @@ chunker.py — Interface générale de chunking (dispatcher modulaire)
 
 Ce module expose :
   - ALL_EXTENSIONS : toutes les extensions supportées
-  - PDF_EXTENSIONS : extensions PDF
-  - CODE_EXTENSIONS : extensions code (Python, C++)
   - chunk_file() : fonction unique qui dispatche vers le bon chunker
 
 Architecture modulaire :
-  chunker.py (ce fichier)     ← Interface unifiée
-    |-- code_chunker.py       ← Chunking code (Python, C++)
-    |-- pdf_chunker.py        ← Chunking PDF
-    |-- (extensible)          ← Ajouter d'autres chunkers ici
+  chunker.py (ce fichier)     <- Interface unifiée
+    |-- code_chunker.py       <- Chunking code (Python, C++)
+    |-- pdf_chunker.py        <- Chunking PDF
+    |-- md_chunker.py         <- Chunking Markdown / RST
+    |-- proto_chunker.py      <- Chunking Protocol Buffers
 """
 from __future__ import annotations
 
@@ -19,8 +18,10 @@ import logging
 from pathlib import Path
 from typing import List, Union
 
-from code_chunker import CodeChunk, PythonChunker, CppChunker
+from code_chunker import chunk_code, CODE_EXTENSIONS, CodeChunk
 from pdf_chunker import chunk_pdf, PDF_EXTENSIONS, DocChunk
+from md_chunker import chunk_markdown, MD_EXTENSIONS
+from proto_chunker import chunk_proto, PROTO_EXTENSIONS
 
 logger = logging.getLogger("chunker")
 
@@ -28,15 +29,7 @@ logger = logging.getLogger("chunker")
 # Extensions supportées (centralisées ici)
 # ---------------------------------------------------------------------------
 
-CODE_EXTENSIONS = {".py", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"}
-ALL_EXTENSIONS = CODE_EXTENSIONS | PDF_EXTENSIONS
-
-# ---------------------------------------------------------------------------
-# Instances des chunkers
-# ---------------------------------------------------------------------------
-
-_python_chunker = PythonChunker()
-_cpp_chunker = CppChunker()
+ALL_EXTENSIONS  = CODE_EXTENSIONS | PDF_EXTENSIONS | MD_EXTENSIONS | PROTO_EXTENSIONS
 
 
 # ---------------------------------------------------------------------------
@@ -60,12 +53,17 @@ def chunk_file(
         [] si le fichier n'est pas supporté ou en cas d'erreur
     """
     ext = path.suffix.lower()
+    logger.info(f"Chunking : {path.relative_to(root)}...")
 
     try:
-        if ext == ".pdf":
-            return _chunk_pdf_wrapper(path, root)
+        if ext in PDF_EXTENSIONS:
+            return _clean(chunk_pdf(path, root))
+        elif ext in MD_EXTENSIONS:
+            return _clean(chunk_markdown(path, root))
+        elif ext in PROTO_EXTENSIONS:
+            return _clean(chunk_proto(path, root))
         elif ext in CODE_EXTENSIONS:
-            return _chunk_code_wrapper(path, root, ext)
+            return _clean(chunk_code(path, root, ext))
         else:
             return []
 
@@ -73,26 +71,6 @@ def chunk_file(
         logger.error(f"Chunking échoué pour {path}: {e}")
         return []
 
-
-def _chunk_code_wrapper(path: Path, root: Path, ext: str) -> List[CodeChunk]:
-    """Wrapper pour le chunking du code (Python, C++)."""
-    try:
-        if ext == ".py":
-            result = _python_chunker.chunk(path, root)
-        else:  # C++
-            result = _cpp_chunker.chunk(path, root)
-
-        return [c for c in (result or []) if c is not None]
-    except Exception as e:
-        logger.error(f"Chunking code échoué pour {path}: {e}")
-        return []
-
-
-def _chunk_pdf_wrapper(path: Path, root: Path) -> List[DocChunk]:
-    """Wrapper pour le chunking du PDF."""
-    try:
-        result = chunk_pdf(path, root)
-        return [c for c in (result or []) if c is not None]
-    except Exception as e:
-        logger.error(f"Chunking PDF échoué pour {path}: {e}")
-        return []
+def _clean(chunks) -> list:
+    """Filtre les None et les listes vides."""
+    return [c for c in (chunks or []) if c is not None]

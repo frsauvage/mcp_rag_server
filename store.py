@@ -22,7 +22,7 @@ import chromadb
 from chromadb.config import Settings
 
 # Import du client embedding depuis le module dédié
-from mcp_rag_client_llm import embed_client, EMBED_MODEL
+from mcp_rag_client_llm import embed_client
 
 from code_chunker import CodeChunk
 from embedder import embed_texts, embed_query
@@ -321,7 +321,7 @@ class CodeStore:
             name=self.HASH_COLLECTION_NAME,
             embedding_function=None,
         )
-        print("Base vectorielle vidée")
+        print("Vectorial base cleaned")
 
 
 def _stable_id(file_path: str) -> str:
