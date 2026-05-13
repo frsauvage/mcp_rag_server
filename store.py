@@ -230,6 +230,7 @@ class CodeStore:
         question: str,
         top_k: int,
         language_filter: Optional[str] = None,
+        chapter_filter: Optional[str] = None,
     ) -> List[dict]:
         """
         Recherche sémantique pure : embedding de la question → top_k chunks.
@@ -250,8 +251,14 @@ class CodeStore:
             n_results=min(top_k, self._collection.count()),
             include=["documents", "metadatas", "distances"],
         )
+
+        where = {}
         if language_filter:
-            kwargs["where"] = {"language": language_filter}
+            where["language"] = language_filter
+        if chapter_filter:
+            where["chapter"] = chapter_filter
+        if where:
+            kwargs["where"] = where
 
         results = self._collection.query(**kwargs)
 

@@ -5,7 +5,7 @@ import logging
 import re
 from pathlib import Path
 from typing import List
-from pdf_chunker import DocChunk, _pdf_hash
+from pdf_chunker import DocChunk, _extract_chapter, _pdf_hash
 
 logger = logging.getLogger("md_chunker")
 MIN_SECTION_CHARS = 100
@@ -29,6 +29,7 @@ def chunk_markdown(path: Path, root: Path) -> List[DocChunk]:
         for part in sections:
             if re.match(r'^#{1,3} ', part):
                 if current_text.strip() and len(current_text.strip()) >= MIN_SECTION_CHARS:
+                    chapter = _extract_chapter(title)
                     header = f"# Document : {relative}\n# Section : {title}\n\n"
                     chunks.append(DocChunk(
                         content=header + current_text.strip(),
@@ -36,6 +37,7 @@ def chunk_markdown(path: Path, root: Path) -> List[DocChunk]:
                         relative_path=relative,
                         chunk_type="section",
                         symbol_name=title,
+                        chapter=chapter,
                         page_start=page,
                         page_end=page,
                         level=part.count('#', 0, part.index(' ')),
@@ -49,6 +51,7 @@ def chunk_markdown(path: Path, root: Path) -> List[DocChunk]:
 
         # Dernière section
         if current_text.strip() and len(current_text.strip()) >= MIN_SECTION_CHARS:
+            chapter = _extract_chapter(title)
             header = f"# Document : {relative}\n# Section : {title}\n\n"
             chunks.append(DocChunk(
                 content=header + current_text.strip(),
@@ -56,6 +59,7 @@ def chunk_markdown(path: Path, root: Path) -> List[DocChunk]:
                 relative_path=relative,
                 chunk_type="section",
                 symbol_name=title,
+                chapter=chapter,
                 page_start=page,
                 page_end=page,
                 level=1,
