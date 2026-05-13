@@ -12,28 +12,18 @@ Serveur MCP qui permet à un LLM de comprendre et analyser une large codebase (P
 - Accès à un endpoint d'embedding compatible OpenAI (ex: bge-m3)
 - Accès à un endpoint LLM compatible OpenAI
 
-### Etapes
-
-```bash
-# 1. Copier le projet
-cd mcp_rag_server
-
-# 2. Créer et activer un environnement virtuel
-python -m venv venv
-venv\Scripts\activate      # Windows
-# source venv/bin/activate # Linux/Mac
-
-# 3. Installer les dépendances
-pip install .
-
-# 4. Configurer l'environnement
+## 🚀 Configuration
+# Configurer l'environnement
+```bat
 cp .env.example .env
+```
+
 # Editer .env et renseigner les variables obligatoires
 ```
 
 ### ⚙️ Variables d'environnement (.env)
 
-| Variable | Obligatoire | Description |
+| Variable  | Obligatoire | Description |
 |---|---|---|
 | `API_KEY` | ✅ | Clé API commune LLM + embedding |
 | `LLM_BASE_URL` | ✅ | URL de l'endpoint LLM |
@@ -89,7 +79,7 @@ python mcp_rag_server.py
 
 ## 📄 Documentation PDF
 
-Placez vos PDFs de documentation (specs, wiki, architecture) dans le répertoire `docs/` uniquement si vous souhaitez centraliser les fichiers. Ce n’est PAS obligatoire : l’indexation fonctionne sur tout répertoire que vous passez en argument à `--index`.
+Placez vos PDFs de documentation (specs, wiki, architecture) dans le répertoire `docs/` uniquement si vous souhaitez centraliser les fichiers. Ce n'est PAS obligatoire : l'indexation fonctionne sur tout répertoire que vous passez en argument à `--index`.
 
 ```
 mcp_rag_server/
@@ -164,3 +154,4 @@ EXCLUDED_DIRS      = {"__pycache__", ".git", ".venv", "venv", "node_modules"}
 ```
 
 Modifiez `indexer.py` pour adapter à votre projet.
+
