@@ -53,7 +53,7 @@ fi
 
 APP_NAME="uv"
 APP_VERSION="0.11.13"
-ARTIFACT_DOWNLOAD_URLS="https://${ARTIFACT_USER}:${ARTIFACT_PASSWORD}@sarma.tosa.thales:443/artifactory/carma-bin-github-archive/astral-sh/uv/releases/download/0.11.13"
+ARTIFACT_DOWNLOAD_URLS="https://${ARTIFACT_USER}:${ARTIFACT_PASSWORD}@${ARTIFACT_URL}/astral-sh/uv/releases/download/0.11.13"
 
 if [ -n "${UV_PRINT_VERBOSE:-}" ]; then
     PRINT_VERBOSE="$UV_PRINT_VERBOSE"

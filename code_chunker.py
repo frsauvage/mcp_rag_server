@@ -40,6 +40,7 @@ class CodeChunk:
     end_line: int
     file_hash: str                        # SHA-256 du fichier source entier
     symbols_referenced: List[str] = field(default_factory=list)
+    chapter: str = ""
 
     @property
     def chunk_id(self) -> str:
@@ -58,6 +59,7 @@ class CodeChunk:
             "language": self.language,
             "chunk_type": self.chunk_type,
             "symbol_name": self.symbol_name,
+            "chapter": self.chapter,
             "start_line": self.start_line,
             "end_line": self.end_line,
             "file_hash": self.file_hash,

@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import List, Optional
+import re
 
 from store import CodeStore
 
@@ -61,8 +62,14 @@ class Retriever:
         answer = await llm_call(prompt)
     """
 
+    CHAPTER_RE = re.compile(r"\b(?:chapitre|chapter)\.?(?:\s+|\s*)?(\d+(?:\.\d+)*)\b", re.IGNORECASE)
+
     def __init__(self, store: CodeStore):
         self.store = store
+
+    def _extract_chapter(self, question: str) -> str:
+        match = self.CHAPTER_RE.search(question)
+        return match.group(1) if match else ""
 
     def retrieve(
         self,
@@ -88,9 +95,22 @@ class Retriever:
             logger.warning("La base est vide — lancez d'abord index_codebase")
             return []
 
-        # Passe 1 : recherche sémantique
-        chunks = self.store.similarity_search(question, top_k, language_filter)
-        print(f"Passe 1 : {len(chunks)} chunks récupérés")
+        chapter = self._extract_chapter(question)
+        if chapter:
+            chunks = self.store.similarity_search(
+                question,
+                top_k,
+                language_filter,
+                chapter_filter=chapter,
+            )
+            print(f"Passe 1 : {len(chunks)} chunks récupérés (filtrés chapitre={chapter})")
+            if not chunks:
+                print(f"Aucun chunk trouvé pour le chapitre {chapter} — fallback recherche normale")
+                chunks = self.store.similarity_search(question, top_k, language_filter)
+                print(f"Passe 1 fallback : {len(chunks)} chunks récupérés")
+        else:
+            chunks = self.store.similarity_search(question, top_k, language_filter)
+            print(f"Passe 1 : {len(chunks)} chunks récupérés")
 
         if not chunks:
             return []
@@ -214,9 +234,10 @@ def _build_context(chunks: List[dict], max_chars: int = MAX_CONTEXT_CHARS) -> st
 
     for chunk in sorted_chunks:
         meta = chunk["metadata"]
+        chapter_label = f" Chapitre {meta['chapter']}" if meta.get("chapter") else ""
         header = (
-            f"\n--- [{meta['language'].upper()}] {meta['symbol_name']} "
-            f"| {meta['relative_path']} L{meta['start_line']}–{meta['end_line']} ---\n"
+            f"\n--- [{meta['language'].upper()}] {meta['symbol_name']}"
+            f"{chapter_label} | {meta['relative_path']} L{meta['start_line']}–{meta['end_line']} ---\n"
         )
         block = header + chunk["content"]
 

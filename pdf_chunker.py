@@ -20,6 +20,13 @@ logger = logging.getLogger("pdf_chunker")
 
 MIN_SECTION_CHARS = 100  # Section trop courte → ignorée
 MAX_CHUNK_CHARS = 1700   # Limite corps de chunk (header ajouté après, nomic~2000 chars max)
+CHAPTER_RE = re.compile(r'^(?:chapitre\s*)?(\d+(?:\.\d+)*)(?:[\.\s:-]+.*)?$', re.IGNORECASE)
+
+
+def _extract_chapter(title: str) -> str:
+    title = title.strip()
+    match = CHAPTER_RE.match(title)
+    return match.group(1) if match else ""
 
 @dataclass
 class DocChunk:
@@ -32,6 +39,7 @@ class DocChunk:
     page_end: int
     level: int               # Niveau hiérarchique TOC (1=H1, 2=H2, ...)
     file_hash: str
+    chapter: str = ""
 
     @property
     def chunk_id(self) -> str:
@@ -45,6 +53,7 @@ class DocChunk:
             "language": "pdf",
             "chunk_type": self.chunk_type,
             "symbol_name": self.symbol_name,
+            "chapter": self.chapter,
             "start_line": self.page_start,   # réutilise start_line pour ChromaDB
             "end_line": self.page_end,
             "file_hash": self.file_hash,
@@ -118,6 +127,7 @@ class PdfChunker:
                     content=header + piece,
                     file_path=str(path),
                     relative_path=relative,
+                    chapter=_extract_chapter(title),
                     chunk_type="section",
                     symbol_name=part_title,
                     page_start=page_start,
@@ -147,6 +157,7 @@ class PdfChunker:
                     content=header + piece,
                     file_path=str(path),
                     relative_path=relative,
+                    chapter="",
                     chunk_type="page",
                     symbol_name=part_title,
                     page_start=page_num + 1,
