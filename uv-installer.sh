@@ -35,11 +35,11 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Try to load environment variables from .uv/.env in user's home directory
-if [ -f "$HOME/.uv/.env" ]; then
+if [ -f "$APPDATA/uv/.env" ]; then
     set -a
-    source "$HOME/.uv/.env"
+    source "$APPDATA/uv/.env"
     set +a
-    echo "Environment variables loaded from $HOME/.uv/.env"
+    echo "Environment variables loaded from $APPDATA/uv/.env"
 fi
 
 # Verify required variables are set
