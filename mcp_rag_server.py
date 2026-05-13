@@ -259,10 +259,14 @@ async def handle_call_tool(
         force_reindex = args.get("force_reindex", False)
 
         try:
-            report = await indexer.index_directory(
-                directory=directory,
-                recursive=recursive,
-                force_reindex=force_reindex,
+            # Timeout de 30 mn pour l'indexation
+            report = await asyncio.wait_for(
+                indexer.index_directory(
+                    directory=directory,
+                    recursive=recursive,
+                    force_reindex=force_reindex,
+                ),
+                timeout=1800  # 30mn
             )
             stats = store.stats()
             summary = report.summary()
