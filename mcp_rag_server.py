@@ -63,7 +63,7 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("mcp_rag_server")
-logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.INFO)
 
 # ---------------------------------------------------------------------------
 # Utilitaires
@@ -280,6 +280,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         # Mode serveur MCP normal
+        print("Starting MCP RAG server...")
         asyncio.run(main())
 
     elif sys.argv[1] == "--debug-chunk":

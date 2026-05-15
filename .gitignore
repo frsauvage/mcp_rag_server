@@ -17,3 +17,5 @@ logs/
 
 poetry.lock
 poetry.toml
+
+CLAUDE.md
