@@ -1,137 +1,200 @@
-# Installation - Mistral
+# 🚀 Installation Guide — MCP RAG Server (Mistral)
 
-## Prérequis
+## 📌 Overview
+
+This guide explains how to install, configure, and run the MCP RAG Server (Python + ChromaDB + MCP tools).
+
+# 🧰 1. Prerequisites
+
+## 🐍 Python
 
 - Python 3.13+
-- Un repo avec ces commandes pour rendre anonyme github:
-```cmd
+- Should be installed manually (zip-based installation supported)
+
+⚠️ Do NOT modify your own `PYTHON_HOME` if ever **MTG** software is installed  
+⚠️ Python would only be available via virtual environment activation (safe)
+
+## 🧑‍💻 Git (optional)
+
+Used for repository management and optional anonymized commits.
+
+### Git anonymous config
+
 git config --global user.email "<23147820+frsauvage@users.noreply.github.com>"
 git config --global user.name "Francine Sauvage"
-```
-## Installation des prérequis
-### Python 3.13+
-Pour installer Python, désarchiver juste un fichier zippé de la version de python désirée dans un  répertoire quelconque.   
-**Important** : ne PAS changer le _PYTHON_HOME_
 
-### uv (optionnel)
-```cmd
-# 1. Créer et configurer le fichier **%APPDATA%/uv/.env**
-ARTIFACT_USER=<TGI>
-ARTIFACT_PASSWORD=<your artifactory pwd>
-ARTIFACT_URL=<miroir github>
-UV_INSTALL_DIR=/d/uv
-UV_PYTHON=</path/to>/Py64/python
-UV_INDEX_USERNAME=<TGI>
-UV_INDEX_PASSWORD=<your artifactory pwd>
-```
+## 📦 Repository
 
-```yaml
-# 2. Créer et configurer le fichier **%APPDATA%/uv/uv.toml**
-system-certs = true
-cache-dir = "</path/to/your/tgi>\\MyApp\\.uv\\cache"
-python-install-mirror = "https://<TGI>:<artifactory_password>:@<ARTIFACTORY_URL>/astral-sh/python-build-standalone/releases/download"
-
-[[index]]
-url = "https://<TGI>:<artifactory_password>@<ARTIFACTORY_URL>api/pypi/.../simple"
-default = true
-
-```
-
-```bash
-# 3. Lancer
-uv-installer.sh
-```
-
-## Installation
-### Etapes
-
-```bash
-# 1. Copier le projet
+git clone <repo-url>
 cd mcp_rag_server
-```
 
-#### Créer un environnement virtuel
+# ⚙️ Python Installation & Setup
+
+## 📥 Manual installation
+
+- Download Python 3.13+
+- Unzip anywhere
+- Ensure python.exe executable is accessible
+
+## 🧪 Virtual environment
+
+### Option A — venv
 
 ```bash
-# 2. Créer un environnement virtuel !! à partir d'un terminal
 python -m venv venv
 venv\Scripts\activate
 ```
-ou
-```bash
-# 2. Créer un environnement virtuel !! à partir d'un git bash
-$ uv venv
-Using CPython 3.13.11 interpreter at: xxxxx\python\python.exe
-Creating virtual environment at: .venv
-Activate with: .venv\Scripts\activate
+
+### Option B — uv (optional)
+
+Create %APPDATA%/uv/.env:
+
+```cmd
+ARTIFACT_USER=<TGI>
+ARTIFACT_PASSWORD=<your_artifactory_password>
+ARTIFACT_URL=<mirror_url>
+UV_INSTALL_DIR=/d/uv
+UV_PYTHON=/path/to/python.exe
+UV_INDEX_USERNAME=<TGI>
+UV_INDEX_PASSWORD=<your_artifactory_password>
 ```
 
-#### Activer un environnement virtuel
-Ouvrir un terminal et activer l'environnement virtuel:
+Create %APPDATA%/uv/uv.toml:
+
 ```bash
-cd D:\IA\mcp_rag_server
-.venv\Scripts\activate
+system-certs = true
+cache-dir = "/path/to/tgi/MyApp/.uv/cache"
+python-install-mirror = "https://<TGI>:<password>@<ARTIFACTORY_URL>/astral-sh/python-build-standalone/releases/download"
+[[index]]
+url = "https://<TGI>:<password>@<ARTIFACTORY_URL>/api/pypi/.../simple"
+default = true
 ```
 
-#### 3. Installer les dépendances
+## uv Installation & Setup
+
+Run the following command:
+
+```bash
+uv-installer.sh
+```
+
+# 📦 Project Setup
+
+## Activate your virtual environment
+
+```bash
+cd mcp_rag_server
+venv\Scripts\activate
+```
+
+## Synchronise your dependencies
+
 ```bash
 uv sync -v
 ```
 
-### 4. Configuration Continue / MCP
+# 🔌 Agent Configuration (Continue)
 
-Éditez votre fichier `config.yaml` de Continue (`.continue/config.yaml`):
+Edit .continue/config.yaml:
 
 ```yaml
 mcpServers:
-  ...
-  - name: mcp-rag-server
-    command: ${{ secrets.MCP_RAG_PROJECT_ROOT }}\.venv\Scripts\python.exe
-    args: 
-      - ${{ secrets.MCP_RAG_PROJECT_ROOT }}\mcp_rag_server.py
-    env:    
-      API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-      MCP_RAG_PROJECT_ROOT: ${{ MCP_RAG_PROJECT_ROOT }}
+
+- name: mcp-rag-server
+    command: ${MCP_RAG_PROJECT_ROOT}\.venv\Scripts\python.exe
+    args:
+  - ${MCP_RAG_PROJECT_ROOT}\mcp_rag_server.py
+    env:
+      API_KEY: ${secrets.MISTRAL_API_KEY}
+      MCP_RAG_PROJECT_ROOT: ${secrets.MCP_RAG_PROJECT_ROOT}
 ```
 
-**Important**: Adaptez les chemins selon votre installation.
+⚠️ Ensure all paths are correct and venv exists.
 
-#### Utiliser les tools MCP
+# 🧠 MCP Tools (Agent Interface)
 
-- **Tools disponibles** :
-  ![Tous les tools](images/flux_archi.png)
+3 tools are exposed:
 
-- **Flux de nettoyage** :
-  ![Flux de nettoyage](images/flux_nettoyage.png)
+## 🧹 clean
 
-- **Flux d'indexation** :
-  ![Flux d'Indexation](images/flux_indexation.png)
+- Clears vector database
+- Manual only
+- No automatic reset
 
-- **Flux de requête** :
-  ![Flux de requête](images/flux_requete.png)
+## 📦 index
+
+- Indexes a full codebase
+- Requires directory path
+- Does NOT clear existing data
+
+## ❓ query
+
+- Answers questions using RAG over indexed code
+
+# 🔄 Workflows
+
+## First usage
+
+index(directory)
+query(question)
+
+## Re-index project
+
+index(directory)
+
+## Reset + new project
+
+clean()
+index(directory)
+
+## Explore code
+
+query(question)
+
+# 🖼️ Visual Documentation
+
+- **Archi** :
+  ![Architecture](images/flux_archi.png)
+
+- **Clean flow** :
+  ![Clean flow](images/flux_nettoyage.png)
+
+- **Indexation flow** :
+  ![Indexation flow](images/flux_indexation.png)
+
+- **Request flow** :
+  ![Request flow](images/flux_requete.png)
 
 #### Examples
+
   ![Exemple de requête](images/example_request_clear.png)
 
+# 🤖 8. Ollama (optional)
 
-## Ollama
-### Ajout du modèle local (si ollama)
-
-```batch
 ollama pull nomic-embed-text
 ollama pull mistral
 ollama pull gpt-oss
-```
-## Exploitation
 
-### Mise à jour des modèles locaux (si ollama)
+Update models:
 
-```batch
 for /f "tokens=1" %i in ('ollama list') do ollama pull %i
-```
 
-## Dépannage
+# 🧯 9. Troubleshooting
 
-- Vérifiez que le venv est activé
-- Vérifiez que la clé API est correcte
-- Vérifiez que les dépendances sont installées: `pip list`
+- Ensure venv is activated
+- Verify API keys
+- Check dependencies: pip list
+
+If MCP fails:
+
+- check Python path in config
+- ensure mcp_rag_server.py exists
+- ensure venv is active
+
+# ✅ Summary
+
+- Python 3.13+
+- venv or uv supported
+- MCP exposes 3 tools
+- no automatic reset
+- manual lifecycle: clean → index → query

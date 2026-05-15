@@ -123,232 +123,135 @@ async def _llm_call(prompt: str) -> str:
 async def handle_list_tools() -> list[types.Tool]:
     return [
         types.Tool(
-            name="index_codebase",
+            name="clean",
+            description="Nettoie complètement la base vectorielle (reset).",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        types.Tool(
+            name="index",
             description=(
-                "Indexe une codebase entiere (Python + C++) dans la base vectorielle ChromaDB. "
-                "Les fichiers inchanges sont ignores grace au cache SHA-256. "
-                "A appeler manuellement avant toute requete sur la codebase, "
-                "et apres chaque modification significative du code source."
+                "Indexe un codebase. "
+                "À utiliser après un clean ou quand on change de projet."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "directory": {
-                        "type": "string",
-                        "description": "Chemin racine de la codebase a indexer"
-                    },
-                    "recursive": {
-                        "type": "boolean",
-                        "description": "Scanner recursivement les sous-repertoires (defaut : true)",
-                        "default": True
-                    },
-                    "force_reindex": {
-                        "type": "boolean",
-                        "description": "Vider la base et tout reindexer (ignore le cache)",
-                        "default": False
-                    }
+                    "directory": {"type": "string"},
+                    "force_reindex": {"type": "boolean", "default": False}
                 },
                 "required": ["directory"]
             }
         ),
         types.Tool(
-            name="query_codebase",
+            name="query",
             description=(
-                "Pose une question en langage naturel sur la codebase indexee. "
-                "Le RAG retrouve les chunks pertinents (recherche semantique + expansion "
-                "des dependances inter-fichiers) et les soumet au LLM avec la question."
+                "Pose une question sur le code indexé."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "question": {
-                        "type": "string",
-                        "description": "Question sur le code (ex: 'Comment fonctionne le thread shutdown ?')"
-                    },
-                    "top_k": {
-                        "type": "integer",
-                        "description": "Nombre de chunks initiaux a recuperer (defaut : 10)",
-                        "default": 10
-                    },
-                    "language_filter": {
-                        "type": "string",
-                        "description": "Filtrer par langage : 'python' ou 'cpp' (optionnel)"
-                    },
-                    "expand_dependencies": {
-                        "type": "boolean",
-                        "description": "Inclure les chunks des symboles references (defaut : true)",
-                        "default": True
-                    }
+                    "question": {"type": "string"}
                 },
                 "required": ["question"]
             }
         ),
-        types.Tool(
-            name="analyze_code",
-            description=(
-                "Analyse un snippet de code fourni directement, sans passer par la base vectorielle. "
-                "Utile pour analyser un extrait isole ou du code non indexe."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "code": {
-                        "type": "string",
-                        "description": "Le code source a analyser"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "Instruction d'analyse (ex: 'Explique ce code', 'Trouve les bugs')"
-                    }
-                },
-                "required": ["code", "prompt"]
-            }
-        ),
-        types.Tool(
-            name="analyze_file",
-            description=(
-                "Lit un fichier source et l'analyse avec le LLM. "
-                "Enrichit automatiquement le contexte avec les chunks RAG lies "
-                "(dependances du fichier dans la codebase indexee)."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Chemin absolu ou relatif du fichier a analyser"
-                    },
-                    "prompt": {
-                        "type": "string",
-                        "description": "Instruction d'analyse"
-                    }
-                },
-                "required": ["file_path", "prompt"]
-            }
-        ),
-        types.Tool(
-            name="get_index_stats",
-            description="Retourne les statistiques de la base vectorielle (fichiers indexes, nombre de chunks, repertoire).",
-            inputSchema={"type": "object", "properties": {}}
-        ),
-        types.Tool(
-            name="clear_index",
-            description=(
-                "Vide completement la base vectorielle (chunks + cache des hashes). "
-                "La prochaine execution de index_codebase reindexera tout from scratch."
-            ),
-            inputSchema={"type": "object", "properties": {}}
-        ),
     ]
-
 
 # ---------------------------------------------------------------------------
 # Gestionnaire des appels d'outils
 # ---------------------------------------------------------------------------
-
 @server.call_tool()
-async def handle_call_tool(
-    name: str, arguments: dict | None
-) -> list[types.TextContent]:
+async def handle_call_tool(name: str, arguments: dict | None):
+    global CURRENT_REPO
+
     args = arguments or {}
 
-    # ------------------------------------------------------------------ index_codebase
-    if name == "index_codebase":
-        directory     = args["directory"]
-        recursive     = args.get("recursive", True)
-        force_reindex = args.get("force_reindex", False)
-
-        try:
-            # Timeout de 30 mn pour l'indexation
-            report = await asyncio.wait_for(
-                indexer.index_directory(
-                    directory=directory,
-                    recursive=recursive,
-                    force_reindex=force_reindex,
-                ),
-                timeout=1800  # 30mn
-            )
-            stats = store.stats()
-            summary = report.summary()
-            summary += (
-                f"\n   Total en base       : {stats['total_chunks']} chunks "
-                f"/ {stats['total_files_indexed']} fichiers"
-            )
-            return [types.TextContent(type="text", text=summary)]
-        except ValueError as e:
-            return [types.TextContent(type="text", text=f"Erreur : {e}")]
-
-    # ------------------------------------------------------------------ query_codebase
-    elif name == "query_codebase":
-        import time
-        question    = args["question"]
-        top_k       = args.get("top_k", 10)
-        lang_filter = args.get("language_filter")
-        expand_deps = args.get("expand_dependencies", True)
-
-        t0 = time.perf_counter()
-        prompt, nb_chunks = await asyncio.to_thread(
-            retriever.build_prompt, question, top_k, lang_filter, expand_deps
-        )
-
-        if nb_chunks == 0:
-            return [types.TextContent(type="text", text="Aucun chunk pertinent trouve.")]
-
-        answer = await _llm_call(prompt)
-        t_total = time.perf_counter() - t0
-
-        print(f"query_codebase : {t_total:.2f}s")
-        return [types.TextContent(type="text", text=f"{answer}\n\nTemps total : {t_total:.2f}s")]
-
-    # ------------------------------------------------------------------ analyze_code
-    elif name == "analyze_code":
-        code   = args["code"]
-        prompt = args["prompt"]
-        full_prompt = f"{prompt}\n\n```\n{code}\n```"
-        result = await _llm_call(full_prompt)
-        return [types.TextContent(type="text", text=result)]
-
-    # ------------------------------------------------------------------ analyze_file
-    elif name == "analyze_file":
-        file_path   = args["file_path"]
-        user_prompt = args["prompt"]
-        try:
-            path = Path(file_path)
-            if not path.exists():
-                raise ValueError(f"Fichier introuvable : {file_path}")
-            content = path.read_text(encoding="utf-8", errors="replace")
-
-            prompt = await asyncio.to_thread(
-                retriever.build_file_prompt,
-                content, str(path), user_prompt
-            )
-            result = await _llm_call(prompt)
-            return [types.TextContent(type="text", text=f"Analyse de {file_path} :\n\n{result}")]
-        except Exception as e:
-            return [types.TextContent(type="text", text=f"Erreur : {e}")]
-
-    # ------------------------------------------------------------------ get_index_stats
-    elif name == "get_index_stats":
-        stats = store.stats()
-        report = (
-            f"Statistiques de l'index\n"
-            f"   Chunks indexes     : {stats['total_chunks']}\n"
-            f"   Fichiers indexes   : {stats['total_files_indexed']}\n"
-            f"   Repertoire Chroma  : {stats['persist_dir']}\n"
-        )
-        return [types.TextContent(type="text", text=report)]
-
-    # ------------------------------------------------------------------ clear_index
-    elif name == "clear_index":
+    # ---------------- CLEAN
+    if name == "clean":
         store.clear()
+        CURRENT_REPO = None
+
         return [types.TextContent(
             type="text",
-            text="Base vectorielle videe. Relancez index_codebase pour reindexer."
+            text="✅ Base vectorielle nettoyée."
         )]
+
+    # ---------------- INDEX
+    elif name == "index":
+        directory = args["directory"]
+        force = args.get("force_reindex", False)
+
+        try:
+            # 🔥 BONUS : auto-clean si repo différent
+            if CURRENT_REPO and CURRENT_REPO != directory:
+                store.clear()
+
+            report = await indexer.index_directory(
+                directory=directory,
+                recursive=True,
+                force_reindex=force,
+            )
+
+            CURRENT_REPO = directory
+            stats = store.stats()
+
+            return [types.TextContent(
+                type="text",
+                text=(
+                    f"✅ Indexation terminée pour {directory}\n\n"
+                    + report.summary()
+                    + f"\nTotal: {stats['total_chunks']} chunks / "
+                      f"{stats['total_files_indexed']} fichiers"
+                )
+            )]
+
+        except Exception as e:
+            return [types.TextContent(
+                type="text",
+                text=f"❌ Erreur index: {e}"
+            )]
+
+    # ---------------- QUERY
+    elif name == "query":
+        question = args["question"]
+
+        stats = store.stats()
+        if stats["total_chunks"] == 0:
+            return [types.TextContent(
+                type="text",
+                text="⚠️ La base est vide. Lance d'abord un index."
+            )]
+
+        try:
+            prompt, nb_chunks = await asyncio.to_thread(
+                retriever.build_prompt,
+                question,
+                10,
+                None,
+                True
+            )
+
+            if nb_chunks == 0:
+                return [types.TextContent(
+                    type="text",
+                    text="Aucun résultat pertinent trouvé."
+                )]
+
+            answer = await _llm_call(prompt)
+
+            return [types.TextContent(
+                type="text",
+                text=answer
+            )]
+
+        except Exception as e:
+            return [types.TextContent(
+                type="text",
+                text=f"❌ Erreur query: {e}"
+            )]
 
     else:
         raise ValueError(f"Outil inconnu : {name}")
-
 
 # ---------------------------------------------------------------------------
 # Point d'entree

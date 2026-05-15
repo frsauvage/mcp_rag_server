@@ -6,20 +6,17 @@ Serveur MCP qui permet à un LLM de comprendre et analyser une large codebase (P
 
 ## 🚀 Installation
 
-### Prérequis
-
-- Python 3.11+
-- Accès à un endpoint d'embedding compatible OpenAI (ex: bge-m3)
-- Accès à un endpoint LLM compatible OpenAI
+See [INSTALL](INSTALL.md)
 
 ## 🚀 Configuration
+
 # Configurer l'environnement
+
 ```bat
 cp .env.example .env
 ```
 
 # Editer .env et renseigner les variables obligatoires
-```
 
 ### ⚙️ Variables d'environnement (.env)
 
@@ -154,4 +151,3 @@ EXCLUDED_DIRS      = {"__pycache__", ".git", ".venv", "venv", "node_modules"}
 ```
 
 Modifiez `indexer.py` pour adapter à votre projet.
-
