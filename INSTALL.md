@@ -72,20 +72,30 @@ default = true
 
 ## uv Installation & Setup
 
-Run the following command:
+From a `Git Bash` command, run the following command:
 
 ```bash
+cd /path/to/mcp-rag-server
 uv-installer.sh
 ```
 
 # 📦 Project Setup
 
-## Activate your virtual environment
-
+## Create your virtual environment
+From a `DOS` command, run the following command:
 ```bash
-cd mcp_rag_server
-venv\Scripts\activate
+cd /path/to/mcp-rag-server
+uv venv
 ```
+
+## Activate your virtual environment
+From a `DOS` command, run the following command:
+```bash
+cd /path/to/mcp-rag-server
+.venv\Scripts\activate.bat
+```
+
+![uv install & create](images/uv.png)
 
 ## Synchronise your dependencies
 
