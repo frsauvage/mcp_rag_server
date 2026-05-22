@@ -162,14 +162,12 @@ async def handle_list_tools() -> list[types.Tool]:
 # ---------------------------------------------------------------------------
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict | None):
-    global CURRENT_REPO
 
     args = arguments or {}
 
     # ---------------- CLEAN
     if name == "clean":
         store.clear()
-        CURRENT_REPO = None
 
         return [types.TextContent(
             type="text",
@@ -182,17 +180,12 @@ async def handle_call_tool(name: str, arguments: dict | None):
         force = args.get("force_reindex", False)
 
         try:
-            # 🔥 BONUS : auto-clean si repo différent
-            if CURRENT_REPO and CURRENT_REPO != directory:
-                store.clear()
-
             report = await indexer.index_directory(
                 directory=directory,
                 recursive=True,
                 force_reindex=force,
             )
 
-            CURRENT_REPO = directory
             stats = store.stats()
 
             return [types.TextContent(
