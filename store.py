@@ -23,6 +23,7 @@ from chromadb.config import Settings
 
 # Import du client embedding depuis le module dédié
 from mcp_rag_client_llm import embed_client
+from code_chunker import CODE_EXTENSIONS
 
 from code_chunker import CodeChunk
 from embedder import embed_texts, embed_query
@@ -233,7 +234,8 @@ class CodeStore:
         chapter_filter: Optional[str] = None,
     ) -> List[dict]:
         """
-        Recherche sémantique pure : embedding de la question → top_k chunks.
+        Recherche sémantique avec reranking : récupère 500 résultats,
+        les reranks en priorité aux fichiers de code, retourne top_k.
 
         Retourne une liste de dicts :
           { "content": str, "metadata": dict, "distance": float }
@@ -246,9 +248,11 @@ class CodeStore:
         if query_embedding is None:
             return []
 
+        # Récupère 500 résultats pour reranking
+        fetch_size = min(500, self._collection.count())
         kwargs = dict(
             query_embeddings=[query_embedding],
-            n_results=min(top_k, self._collection.count()),
+            n_results=fetch_size,
             include=["documents", "metadatas", "distances"],
         )
 
@@ -262,7 +266,7 @@ class CodeStore:
 
         results = self._collection.query(**kwargs)
 
-        return [
+        chunks = [
             {"content": doc, "metadata": meta, "distance": dist}
             for doc, meta, dist in zip(
                 results["documents"][0],
@@ -270,6 +274,27 @@ class CodeStore:
                 results["distances"][0],
             )
         ]
+
+        # Reranking : priorité aux fichiers de code (.py, .cpp)
+        chunks = self._rerank_by_file_type(chunks)
+
+        # Retourne top_k après reranking
+        return chunks[:top_k]
+
+    def _rerank_by_file_type(self, chunks: List[dict]) -> List[dict]:
+        """Trie les chunks en mettant les fichiers de code en priorité."""
+        code_chunks = []
+        other_chunks = []
+
+        for chunk in chunks:
+            ext = Path(chunk["metadata"]["relative_path"]).suffix.lower()
+            if ext in CODE_EXTENSIONS:
+                code_chunks.append(chunk)
+            else:
+                other_chunks.append(chunk)
+
+        # Retourne code en premier, puis autres
+        return code_chunks + other_chunks
 
     def get_chunks_by_symbol(self, symbol_name: str, limit: int = 3) -> List[dict]:
         """

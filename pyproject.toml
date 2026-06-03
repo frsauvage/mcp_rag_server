@@ -13,10 +13,10 @@ dependencies = [
     "mcp>=1.0.0",
 
     # LangChain + Mistral
-    "langchain-openai>=0.1",
+    "langchain-openai>=1.2.2",
     
     # ChromaDB (base vectorielle avec persistance SQLite)
-    "chromadb>=0.5",
+    "chromadb>=1.5.9",
 
     # Chunking C++
     "tree-sitter>=0.23",
@@ -26,14 +26,14 @@ dependencies = [
     # Utilitaires
     "python-dotenv>=1.0",
 
-    "pydantic<3.0.0,>=2.11.0",
-    "openai>=1.0.0",
+    "pydantic>=2.11.0",
+    "openai>=2.40.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.4",
     "jupyter",
 ]
