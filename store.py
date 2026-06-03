@@ -36,6 +36,7 @@ logger = logging.getLogger("store")
 
 # Taille de batch pour gpt-embed (max API : 512, on reste conservateur)
 EMBED_BATCH_SIZE = int(os.getenv("EMBED_BATCH_SIZE", "128"))
+MAX_RERANK = int(os.getenv("MAX_RERANK", "500"))  # Nombre de résultats à récupérer pour le reranking (priorité code)
 
 # ---------------------------------------------------------------------------
 # CodeStore
@@ -234,67 +235,135 @@ class CodeStore:
         chapter_filter: Optional[str] = None,
     ) -> List[dict]:
         """
-        Recherche sémantique avec reranking : récupère 500 résultats,
-        les reranks en priorité aux fichiers de code, retourne top_k.
-
-        Retourne une liste de dicts :
-          { "content": str, "metadata": dict, "distance": float }
-        triés par distance croissante (plus proche = plus pertinent).
+        Recherche hybride :
+        1. Recherche par mots exacts (lexicale)
+        2. Recherche sémantique (vectorielle)
+        3. Fusion avec priorité absolue aux correspondances lexicales exactes,
+           puis application du reranking par type de fichier.
         """
         if self._collection.count() == 0:
             return []
 
-        query_embedding = embed_query(question)
-        if query_embedding is None:
-            return []
-
-        # Récupère 500 résultats pour reranking
-        fetch_size = min(500, self._collection.count())
-        kwargs = dict(
-            query_embeddings=[query_embedding],
-            n_results=fetch_size,
-            include=["documents", "metadatas", "distances"],
-        )
-
-        where = {}
+        # Construction des filtres de métadonnées communs
+        where_clause = {}
         if language_filter:
-            where["language"] = language_filter
+            where_clause["language"] = language_filter
         if chapter_filter:
-            where["chapter"] = chapter_filter
-        if where:
-            kwargs["where"] = where
+            where_clause["chapter"] = chapter_filter
 
-        results = self._collection.query(**kwargs)
-
-        chunks = [
-            {"content": doc, "metadata": meta, "distance": dist}
-            for doc, meta, dist in zip(
-                results["documents"][0],
-                results["metadatas"][0],
-                results["distances"][0],
+        # ------------------------------------------------------------------
+        # ETAPE 1 : Recherche lexicale (Mots exacts)
+        # ------------------------------------------------------------------
+        exact_chunks = []
+        try:
+            # ChromaDB permet de chercher des sous-chaînes dans les documents
+            lexical_results = self._collection.get(
+                where_document={"$contains": question},
+                where=where_clause if where_clause else None,
+                include=["documents", "metadatas"],
+                limit=MAX_RERANK
             )
-        ]
+            
+            if lexical_results and lexical_results["ids"]:
+                for doc, meta in zip(lexical_results["documents"], lexical_results["metadatas"]):
+                    exact_chunks.append({
+                        "content": doc,
+                        "metadata": meta,
+                        "distance": 0.0,  # Score parfait (0.0 = distance minimale) car mot exact
+                        "lexical_match": True # Flag pour le tri personnalisé
+                    })
+        except Exception as e:
+            logger.warning(f"Recherche lexicale échouée: {e}")
 
-        # Reranking : priorité aux fichiers de code (.py, .cpp)
-        chunks = self._rerank_by_file_type(chunks)
+        # ------------------------------------------------------------------
+        # ETAPE 2 : Recherche sémantique (Vectorielle)
+        # ------------------------------------------------------------------
+        query_embedding = embed_query(question)
+        semantic_chunks = []
+        
+        if query_embedding is not None:
+            fetch_size = min(MAX_RERANK, self._collection.count())
+            kwargs = dict(
+                query_embeddings=[query_embedding],
+                n_results=fetch_size,
+                include=["documents", "metadatas", "distances"],
+            )
+            if where_clause:
+                kwargs["where"] = where_clause
 
-        # Retourne top_k après reranking
-        return chunks[:top_k]
+            results = self._collection.query(**kwargs)
+            
+            if results and results["documents"]:
+                for doc, meta, dist in zip(
+                    results["documents"][0],
+                    results["metadatas"][0],
+                    results["distances"][0],
+                ):
+                    semantic_chunks.append({
+                        "content": doc,
+                        "metadata": meta,
+                        "distance": dist,
+                        "lexical_match": False
+                    })
 
-    def _rerank_by_file_type(self, chunks: List[dict]) -> List[dict]:
-        """Trie les chunks en mettant les fichiers de code en priorité."""
-        code_chunks = []
-        other_chunks = []
+        # ------------------------------------------------------------------
+        # ETAPE 3 : Fusion et dédoublonnement
+        # ------------------------------------------------------------------
+        # On utilise une clé unique pour éviter les doublons (ex: le contenu ou un ID si disponible)
+        seen_contents = set()
+        combined_chunks = []
+
+        # On insère d'abord les correspondances exactes
+        for chunk in exact_chunks:
+            if chunk["content"] not in seen_contents:
+                seen_contents.add(chunk["content"])
+                combined_chunks.append(chunk)
+
+        # On complète avec le sémantique
+        for chunk in semantic_chunks:
+            if chunk["content"] not in seen_contents:
+                seen_contents.add(chunk["content"])
+                combined_chunks.append(chunk)
+
+        # ------------------------------------------------------------------
+        # ETAPE 4 : Reranking (Priorité Lexical ET Code)
+        # ------------------------------------------------------------------
+        final_chunks = self._rerank_hybrid(combined_chunks)
+
+        # Retourne le top_k final
+        return final_chunks[:top_k]
+
+    def _rerank_hybrid(self, chunks: List[dict]) -> List[dict]:
+        """
+        Trie la pile selon l'ordre de priorité suivant :
+        1. Match Lexical (Mot exact) ET Fichier de Code (.py, .cpp...)
+        2. Match Lexical (Mot exact) ET Autre fichier
+        3. Match Sémantique ET Fichier de Code
+        4. Match Sémantique ET Autre fichier
+        
+        Au sein de chaque groupe, les éléments restent triés par distance.
+        """
+        lexical_code = []
+        lexical_other = []
+        semantic_code = []
+        semantic_other = []
 
         for chunk in chunks:
-            ext = Path(chunk["metadata"]["relative_path"]).suffix.lower()
-            if ext in CODE_EXTENSIONS:
-                code_chunks.append(chunk)
-            else:
-                other_chunks.append(chunk)
+            ext = Path(chunk["metadata"].get("relative_path", "")).suffix.lower()
+            is_code = ext in CODE_EXTENSIONS
+            is_lexical = chunk.get("lexical_match", False)
 
-        # Retourne code en premier, puis autres
-        return code_chunks + other_chunks
+            if is_lexical and is_code:
+                lexical_code.append(chunk)
+            elif is_lexical and not is_code:
+                lexical_other.append(chunk)
+            elif not is_lexical and is_code:
+                semantic_code.append(chunk)
+            else:
+                semantic_other.append(chunk)
+
+        # Recombinaison de la pile dans l'ordre strict des priorités
+        return lexical_code + lexical_other + semantic_code + semantic_other
 
     def get_chunks_by_symbol(self, symbol_name: str, limit: int = 3) -> List[dict]:
         """

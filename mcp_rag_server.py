@@ -320,7 +320,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "--query":
         async def test_query():
             import time
-            print("=== Test query_codebase (sans reindexation) ===")
+            
             stats = store.stats()
             print(f"Base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
 
