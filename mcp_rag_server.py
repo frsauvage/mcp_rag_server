@@ -34,11 +34,16 @@ from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
 
 from store import CodeStore
 from indexer import Indexer
 from retriever import Retriever
 from mcp_rag_client_llm import llm_client
+
+console = Console()
 
 load_dotenv(encoding='utf-8')
 
@@ -80,11 +85,37 @@ def _print_log_errors(log_file: Path):
                 if "ERROR" in line or "error" in line.lower():
                     errors.append(line.strip())
         if errors:
-            print("\n⚠️  Erreurs détectées dans les logs :")
-            for error in errors[-10:]:  # Afficher les 10 dernières erreurs
-                print(f"  {error}")
+            console.print("\n⚠️  Erreurs détectées dans les logs :")
+            for error in errors[-10:]:
+                console.print(f"  {error}", style="red")
     except Exception as e:
-        pass  # Silencieux si lecture échoue
+        pass
+
+def _paginate_output(text: str, lines_per_page: int = 30) -> None:
+    """Affiche le texte par pages si plus de lines_per_page lignes."""
+    lines = text.split('\n')
+
+    if len(lines) <= lines_per_page:
+        console.print(Markdown(text))
+        return
+
+    page = 0
+    while page * lines_per_page < len(lines):
+        start = page * lines_per_page
+        end = min(start + lines_per_page, len(lines))
+        page_text = '\n'.join(lines[start:end])
+
+        console.print(Markdown(page_text))
+
+        if end < len(lines):
+            progress = f"[dim]Page {page + 1}/{(len(lines) + lines_per_page - 1) // lines_per_page} — Appuyez sur Entrée pour continuer...[/dim]"
+            console.print(progress)
+            try:
+                input()
+            except EOFError:
+                break
+
+        page += 1
 
 # ---------------------------------------------------------------------------
 # Initialisation des composants
@@ -360,9 +391,10 @@ if __name__ == "__main__":
 
                 history.append({"question": question, "answer": answer})
 
-                print(f"Reponse :\n{answer}")
-                print(f"Retrieval : {t_retrieval:.2f}s | LLM : {t_llm:.2f}s | Total : {t_retrieval + t_llm:.2f}s")
-                print(f"Historique : {len(history)} tour(s)")
+                
+                _paginate_output(answer, lines_per_page=30)
+                console.print(f"[cyan]Retrieval[/cyan]: {t_retrieval:.2f}s | [cyan]LLM[/cyan]: {t_llm:.2f}s | [bold]Total[/bold]: {t_retrieval + t_llm:.2f}s")
+                console.print(f"[dim]Historique: {len(history)} tour(s)[/dim]")
 
         asyncio.run(test_query())
 
