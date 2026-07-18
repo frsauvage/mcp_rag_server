@@ -103,14 +103,14 @@ class Retriever:
                 language_filter,
                 chapter_filter=chapter,
             )
-            print(f"Passe 1 : {len(chunks)} chunks récupérés (filtrés chapitre={chapter})")
+            logger.info(f"Passe 1 : {len(chunks)} chunks récupérés (filtrés chapitre={chapter})")
             if not chunks:
-                print(f"Aucun chunk trouvé pour le chapitre {chapter} — fallback recherche normale")
+                logger.info(f"Aucun chunk trouvé pour le chapitre {chapter} — fallback recherche normale")
                 chunks = self.store.similarity_search(question, top_k, language_filter)
-                print(f"Passe 1 fallback : {len(chunks)} chunks récupérés")
+                logger.info(f"Passe 1 fallback : {len(chunks)} chunks récupérés")
         else:
             chunks = self.store.similarity_search(question, top_k, language_filter)
-            print(f"Passe 1 : {len(chunks)} chunks récupérés")
+            logger.info(f"Passe 1 : {len(chunks)} chunks récupérés")
 
         if not chunks:
             return []
@@ -118,7 +118,7 @@ class Retriever:
         # Passe 2 : expansion des dépendances
         if expand_deps and DEPENDENCY_DEPTH > 0:
             chunks = self._expand(chunks, depth=DEPENDENCY_DEPTH)
-            print(f"Passe 2 : {len(chunks)} chunks après expansion")
+            logger.info(f"Passe 2 : {len(chunks)} chunks après expansion")
 
         return chunks
 

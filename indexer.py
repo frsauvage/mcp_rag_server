@@ -87,61 +87,45 @@ class Indexer:
         force_reindex: bool = False,
     ) -> IndexReport:
         """
-        Alias pour indexer un seul répertoire.
-        """
-        return await self.index_directories(
-            directories=[directory],
-            recursive=recursive,
-            force_reindex=force_reindex,
-        )
+        Indexe un répertoire.
 
-    async def index_directories(
-        self,
-        directories: list[str],
-        recursive: bool = True,
-        force_reindex: bool = False,
-    ) -> IndexReport:
-        """
-        Indexe plusieurs répertoires distincts.
+        Les exclusions de sous-répertoires ne sont pas gérées ici : elles sont
+        extraites en amont via le prompt extract_dirs (LLM) sur un seul chemin racine.
 
         Args:
-            directories  : Liste de répertoires à scanner
+            directory    : Répertoire à indexer
             recursive    : Scanner les sous-répertoires
             force_reindex: Vider la base avant d'indexer (réindexation complète)
 
         Returns:
             IndexReport avec le détail de l'opération
         """
-        resolved_dirs = [Path(d).resolve() for d in directories]
-        missing = [str(d) for d in resolved_dirs if not d.exists()]
-        if missing:
-            raise ValueError(f"Répertoires introuvables : {', '.join(missing)}")
+        path = Path(directory).resolve()
+        if not path.is_dir():
+            raise ValueError(f"Répertoire introuvable : {path}")
 
-        report = IndexReport(directory=", ".join(str(d) for d in resolved_dirs))
+        report = IndexReport(directory=str(path))
 
         if force_reindex:
-            print("force_reindex=True → vidage de la base")
+            logger.info("force_reindex=True → vidage de la base")
             self.store.clear()
 
+        files = self._scan_files(path, recursive)
+        logger.info(f"Scan : {len(files)} fichiers trouvés dans {path}")
+
         all_chunks: List[CodeChunk] = []
-        all_files: List[Path] = []
 
-        for dir_path in resolved_dirs:
-            files = self._scan_files(dir_path, recursive)
-            all_files.extend(files)
-            print(f"Scan : {len(files)} fichiers trouvés dans {dir_path}")
+        for file_path in files:
+            try:
+                chunks = await asyncio.to_thread(chunk_file, file_path, path)
+                all_chunks.extend(c for c in (chunks or []) if c is not None)
+            except Exception as e:
+                logger.warning(f"Chunking échoué pour {file_path}: {e}")
+                report.failed_files.append(str(file_path))
 
-            for file_path in files:
-                try:
-                    chunks = await asyncio.to_thread(chunk_file, file_path, dir_path)
-                    all_chunks.extend(c for c in (chunks or []) if c is not None)
-                except Exception as e:
-                    logger.warning(f"Chunking échoué pour {file_path}: {e}")
-                    report.failed_files.append(str(file_path))
-
-        report.files_found = len(all_files)
+        report.files_found = len(files)
         report.chunks_generated = len(all_chunks)
-        print(f"Chunking : {len(all_chunks)} chunks générés")
+        logger.info(f"Chunking : {len(all_chunks)} chunks générés")
 
         embedded = await asyncio.to_thread(self.store.upsert_chunks, all_chunks)
         report.chunks_embedded = embedded
@@ -151,7 +135,7 @@ class Indexer:
         report.files_cached = report.files_found - report.files_indexed - len(report.failed_files)
 
         stats = self.store.stats()
-        print(
+        logger.info(
             f"Indexation terminée — base : {stats['total_chunks']} chunks / "
             f"{stats['total_files_indexed']} fichiers"
         )

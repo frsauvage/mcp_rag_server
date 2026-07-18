@@ -103,7 +103,7 @@ class CodeStore:
         # Remplacer par :
         self._embedder = embed_client
 
-        print(
+        logger.info(
             f"CodeStore prêt — {self._collection.count()} chunks, "
             f"{self._hash_collection.count()} fichiers indexés "
             f"(persist: {self.persist_dir})"
@@ -173,15 +173,15 @@ class CodeStore:
             to_embed.extend(file_chunks)
 
         if cache_hits:
-            print(f"Cache : {cache_hits} fichier(s) ignorés (inchangés)")
+            logger.info(f"Cache : {cache_hits} fichier(s) ignorés (inchangés)")
 
         if not to_embed:
-            print("Rien à embedder — tout le cache est valide")
+            logger.info("Rien à embedder — tout le cache est valide")
             return 0
 
         embedded = self._embed_and_store(to_embed)
 
-        print(f"Embedding : {len(to_embed)} chunks ({len(by_file) - cache_hits} fichiers nouveaux/modifiés)")
+        logger.info(f"Embedding : {len(to_embed)} chunks ({len(by_file) - cache_hits} fichiers nouveaux/modifiés)")
 
         return embedded
 
@@ -200,7 +200,7 @@ class CodeStore:
                 embeddings = self._embed_with_retry([c.content for c in batch])
                 if embeddings is None:
                     logger.error(f"❌ Batch échoué pour {file_path} ({len(batch)} chunks) — fichier ignoré")
-                    print(f"  ❌ Erreur: Embedding échoué pour {file_path}")
+                    logger.info(f"  ❌ Erreur: Embedding échoué pour {file_path}")
                     break
                 self._collection.upsert(
                     ids=[c.chunk_id for c in batch],
@@ -210,7 +210,7 @@ class CodeStore:
                 )
                 file_embedded += len(batch)
                 total += len(batch)
-                print(f"  ✓ {total} chunks indexés")
+                logger.info(f"  ✓ {total} chunks indexés")
 
             # Hash sauvegardé uniquement si TOUS les chunks du fichier sont embeddés
             if file_embedded == len(file_chunks):
@@ -422,7 +422,7 @@ class CodeStore:
             name=self.HASH_COLLECTION_NAME,
             embedding_function=None,
         )
-        print("Vectorial base cleaned")
+        logger.info("Vectorial base cleaned")
 
 
 def _stable_id(file_path: str) -> str:

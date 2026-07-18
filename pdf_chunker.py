@@ -90,10 +90,10 @@ class PdfChunker:
 
         toc = doc.get_toc()  # [[level, title, page], ...]
         if toc:
-            print(f"{path.name} : TOC détectée ({len(toc)} sections)")
+            logger.info(f"{path.name} : TOC détectée ({len(toc)} sections)")
             chunks = self._chunk_by_toc(doc, toc, path, relative, fhash)
         else:
-            print(f"{path.name} : pas de TOC, fallback par page")
+            logger.info(f"{path.name} : pas de TOC, fallback par page")
             chunks = self._chunk_by_page(doc, path, relative, fhash)
 
         doc.close()
@@ -223,7 +223,7 @@ PDF_EXTENSIONS = {".pdf"}
 
 def chunk_pdf(path: Path, root: Path) -> List[DocChunk]:
     try:
-        print(f"Chunking PDF : {path.relative_to(root)}")
+        logger.info(f"Chunking PDF : {path.relative_to(root)}")
         result = _pdf_chunker.chunk(path, root)
         return [c for c in (result or []) if c is not None]
     except Exception as e:

@@ -19,6 +19,7 @@ Architecture interne :
       |-- chunker.py     <- chunking syntaxique Python (ast) et C++ (tree-sitter)
       |-- mcp_client_llm.py  <- configuration du LLM de generation
 """
+import argparse
 import asyncio
 import logging
 import sys
@@ -55,20 +56,68 @@ PATH_LOGS = os.getenv("PATH_LOGS", "./logs")
 LOG_DIR = Path(PATH_LOGS)
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+_log_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+# Fichier : reçoit DEBUG et au-dessus
+file_handler = logging.FileHandler(LOG_DIR / "mcp_rag_server.log", encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(_log_formatter)
+
+# stdout : reçoit uniquement INFO et au-dessus
 stream_handler = logging.StreamHandler(
     io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 )
+stream_handler.setLevel(logging.INFO)
+stream_handler.setFormatter(_log_formatter)
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(LOG_DIR / "mcp_rag_server.log", encoding='utf-8'),
-        stream_handler,
-    ],
+    level=logging.DEBUG,  # le root logger doit laisser passer DEBUG jusqu'au FileHandler
+    handlers=[file_handler, stream_handler],
 )
 logger = logging.getLogger("mcp_rag_server")
 logging.getLogger("httpx").setLevel(logging.INFO)
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Construit le parseur d'arguments CLI.
+
+    --chroma_db est une option globale et independante des commandes
+    (index/clean/query/debug-chunk), ce qui evite toute confusion avec
+    leurs propres arguments (ex: le repertoire de --index).
+    """
+    parser = argparse.ArgumentParser(
+        prog="mcp_rag_server.py",
+        description="Serveur MCP RAG - indexation et interrogation d'une codebase.",
+    )
+    parser.add_argument(
+        "--chroma_db",
+        metavar="CHEMIN",
+        default=os.getenv("CHROMA_PERSIST_DIR", "./chroma_db"),
+        help="Dossier de la base ChromaDB (defaut : $CHROMA_PERSIST_DIR ou ./chroma_db)",
+    )
+    commands = parser.add_mutually_exclusive_group()
+    commands.add_argument(
+        "--index",
+        metavar="REPERTOIRE",
+        help="Indexe un repertoire",
+    )
+    commands.add_argument(
+        "--clean",
+        action="store_true",
+        help="Vide la base vectorielle",
+    )
+    commands.add_argument(
+        "--query",
+        action="store_true",
+        help="Lance une session RAG interactive",
+    )
+    commands.add_argument(
+        "--debug-chunk",
+        metavar="FICHIER",
+        help="Affiche le resultat du chunking pour un fichier (debug)",
+    )
+    return parser
+
+args = _build_arg_parser().parse_args()
 
 # ---------------------------------------------------------------------------
 # Utilitaires
@@ -91,7 +140,7 @@ def _print_log_errors(log_file: Path):
     except Exception as e:
         pass
 
-def _paginate_output(text: str, lines_per_page: int = 30) -> None:
+def _paginate_output(text: str, lines_per_page: int = 40) -> None:
     """Affiche le texte par pages si plus de lines_per_page lignes."""
     lines = text.split('\n')
 
@@ -121,9 +170,7 @@ def _paginate_output(text: str, lines_per_page: int = 30) -> None:
 # Initialisation des composants
 # ---------------------------------------------------------------------------
 
-CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
-
-store     = CodeStore(persist_dir=CHROMA_PERSIST_DIR)
+store     = CodeStore(persist_dir=args.chroma_db)
 indexer   = Indexer(store)
 retriever = Retriever(store)
 
@@ -132,7 +179,7 @@ retriever = Retriever(store)
 # ---------------------------------------------------------------------------
 
 server = Server("llm-code-reader")
-print("MCP Server initialized")
+logger.info("MCP Server initialized")
 
 
 async def _llm_call(prompt: str) -> str:
@@ -283,7 +330,7 @@ async def handle_call_tool(name: str, arguments: dict | None):
 
 async def main():
     if not llm_client:
-        print("ATTENTION : llm_client non configure (voir mcp_client_llm.py et .env).")
+        logger.info("ATTENTION : llm_client non configure (voir mcp_client_llm.py et .env).")
         return
 
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
@@ -302,58 +349,50 @@ async def main():
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 2:
-        # Mode serveur MCP normal
-        print("Starting MCP RAG server...")
-        asyncio.run(main())
-
-    elif sys.argv[1] == "--debug-chunk":
+    if args.debug_chunk:
         # python mcp_rag_server.py --debug-chunk chemin/fichier.py
         from chunker import chunk_file
         from code_chunker import CodeChunk
         from pdf_chunker import DocChunk
-        path = Path(sys.argv[2])
+        path = Path(args.debug_chunk)
         chunks = chunk_file(path, path.parent)
-        print(f"{len(chunks)} chunks trouves dans {path.name}")
+        logger.info(f"{len(chunks)} chunks trouves dans {path.name}")
         for c in chunks:
             if isinstance(c, CodeChunk):
-                print(f"  [{c.chunk_type:12}] {c.symbol_name:40} L{c.start_line}-{c.end_line}")
+                logger.info(f"  [{c.chunk_type:12}] {c.symbol_name:40} L{c.start_line}-{c.end_line}")
                 if hasattr(c, 'symbols_referenced') and c.symbols_referenced:
-                    print(f"    -> refs: {', '.join(c.symbols_referenced)}")
+                    logger.info(f"    -> refs: {', '.join(c.symbols_referenced)}")
             elif isinstance(c, DocChunk):
-                print(f"  [{c.chunk_type:12}] {c.symbol_name:40} P{c.page_start}-{c.page_end}")
+                logger.info(f"  [{c.chunk_type:12}] {c.symbol_name:40} P{c.page_start}-{c.page_end}")
             else:
-                print(f"  [{c.chunk_type:12}] {c.symbol_name:40}")
+                logger.info(f"  [{c.chunk_type:12}] {c.symbol_name:40}")
 
-    elif sys.argv[1] == "--clean":
-        print("Cleaning vectorial store...")
+    if args.clean:
+        logger.info("Cleaning vectorial store...")
         store.clear()
-        print("Base emptied.")
+        logger.info("Base emptied.")
 
-    elif sys.argv[1] == "--index":
-        if len(sys.argv) < 3:
-            logger.error("Usage : python mcp_rag_server.py --index <repertoire> [<repertoire2> ...]")
-            sys.exit(1)
-        directories = sys.argv[2:]
+    if args.index:
+        directory = args.index
 
         async def run_index():
-            print(f"Indexation de {', '.join(directories)}...")
-            report = await indexer.index_directories(directories=directories, recursive=True)
-            print(report.summary())
+            logger.info(f"Indexation de {directory}...")
+            report = await indexer.index_directory(directory=directory, recursive=True)
+            logger.info(report.summary())
             stats = store.stats()
-            print(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
-            print(f"Storage : {stats['persist_dir']}")
-            
+            logger.info(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
+            logger.info(f"Storage : {stats['persist_dir']}")
+
             # Afficher les erreurs du log
             _print_log_errors(LOG_DIR / "mcp_rag_server.log")
         asyncio.run(run_index())
 
-    elif sys.argv[1] == "--query":
+    if args.query:
         async def test_query():
             import time
-            
+
             stats = store.stats()
-            print(f"Base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
+            logger.info(f"Base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
 
             if stats['total_chunks'] == 0:
                 logger.warning("La base est vide -- lancez d'abord : python mcp_rag_server.py --index <repertoire>")
@@ -376,7 +415,7 @@ if __name__ == "__main__":
                     retriever.build_prompt, question, top_k, None, False
                 )
                 t_retrieval = time.perf_counter() - t0
-                print(f"{nb_chunks} chunk(s) recupere(s) en {t_retrieval:.2f}s -- envoi au LLM...")
+                logger.info(f"{nb_chunks} chunk(s) recupere(s) en {t_retrieval:.2f}s -- envoi au LLM...")
 
                 history_text = ""
                 if history:
@@ -391,17 +430,14 @@ if __name__ == "__main__":
 
                 history.append({"question": question, "answer": answer})
 
-                
+
                 _paginate_output(answer, lines_per_page=30)
                 console.print(f"[cyan]Retrieval[/cyan]: {t_retrieval:.2f}s | [cyan]LLM[/cyan]: {t_llm:.2f}s | [bold]Total[/bold]: {t_retrieval + t_llm:.2f}s")
                 console.print(f"[dim]Historique: {len(history)} tour(s)[/dim]")
 
         asyncio.run(test_query())
 
-    else:
-        print("Usage :")
-        print("  python mcp_rag_server.py                         -> serveur MCP")
-        print("  python mcp_rag_server.py --index <repertoire>    -> indexation")
-        print("  python mcp_rag_server.py --clean                 -> vider la base")
-        print("  python mcp_rag_server.py --query                 -> test RAG interactif")
-        print("  python mcp_rag_server.py --debug-chunk <fichier> -> debug chunker")
+    if not any([args.debug_chunk, args.clean, args.index, args.query]):
+        # Aucune commande -> mode serveur MCP normal
+        logger.info("Starting MCP RAG server...")
+        asyncio.run(main())

@@ -148,7 +148,7 @@ class TestIndexDirectory:
     async def test_missing_directory_raises(self, tmp_path):
         store = self._make_store()
         indexer = Indexer(store)
-        with pytest.raises(ValueError, match="introuvables"):
+        with pytest.raises(ValueError, match="introuvable"):
             await indexer.index_directory(str(tmp_path / "nope"))
 
     @pytest.mark.asyncio
