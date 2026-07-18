@@ -44,7 +44,7 @@ class DocChunk:
     @property
     def chunk_id(self) -> str:
         raw = f"{self.file_path}:p{self.page_start}:{self.symbol_name}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+        return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
     def to_metadata(self) -> dict:
         return {

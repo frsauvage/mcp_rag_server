@@ -34,7 +34,7 @@ class CodeChunk:
     def chunk_id(self) -> str:
         """Identifiant stable et unique basé sur (file_path, start_line)."""
         raw = f"{self.file_path}:{self.start_line}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+        return hashlib.sha256(raw.encode()).hexdigest()[:24]
 
     def to_metadata(self) -> dict:
         """Sérialise les métadonnées pour ChromaDB."""

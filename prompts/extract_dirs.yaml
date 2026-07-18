@@ -1,0 +1,24 @@
+name: extract_dirs
+description: Extraction des répertoires à indexer depuis un fichier agent (MISTRAL.md / AGENT.md)
+template: |
+  Tu appliques des règles d'inclusion/exclusion sur une liste de répertoires.
+
+  Fichier de règles :
+  ```
+  {agent_file_content}
+  ```
+
+  Liste complète des répertoires (chemins relatifs) :
+  {dirs_list}
+
+  Règles à appliquer STRICTEMENT :
+  1. Pars de la liste complète ci-dessus.
+  2. Retire les répertoires explicitement exclus ET leurs sous-répertoires.
+  3. Si un répertoire parent est inclu mais PAS tous ses enfants,
+     retire uniquement les enfants exclus, garde les autres.
+  4. Ne retire rien d'autre. Ne fais aucune inférence sur le contenu.
+
+  Réponds UNIQUEMENT avec un tableau JSON de chemins relatifs à la racine, séparateur `/`.
+  Aucune explication, juste le JSON brut.
+  Exemple : ["COMMON", "COMMON/services", "API/core"]
+  Si aucun répertoire pertinent : []

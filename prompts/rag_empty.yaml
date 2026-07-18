@@ -1,0 +1,6 @@
+name: rag_empty
+description: Prompt de repli quand aucun contexte de code n'est disponible
+template: |
+  Question : {question}
+
+  (Aucun contexte de code trouvé. La base est peut-être vide.)
