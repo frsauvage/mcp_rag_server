@@ -75,7 +75,7 @@ logging.basicConfig(
     handlers=[file_handler, stream_handler],
 )
 logger = logging.getLogger("mcp_rag_server")
-logging.getLogger("httpx").setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     """Construit le parseur d'arguments CLI.

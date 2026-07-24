@@ -8,7 +8,7 @@ template: |
   {agent_file_content}
   ```
 
-  Liste complète des répertoires (chemins relatifs) :
+  Liste complète des sous-répertoires (chemins relatifs) :
   {dirs_list}
 
   Règles à appliquer STRICTEMENT :
