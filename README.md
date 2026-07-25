@@ -8,6 +8,10 @@ Serveur MCP qui permet à un LLM de comprendre et analyser une large codebase (P
 
 See [INSTALL](INSTALL.md)
 
+## 📄 AGENT.md (ce projet)
+
+Le fichier [`AGENT.md`](AGENT.md) à la racine de CE projet est là pour permettre l'installation MCP dans ces sources uniquement : il définit le comportement de l'agent (system prompt) qui pilote les outils MCP exposés par ce serveur.
+
 ## 🚀 Configuration
 
 # Configurer l'environnement
@@ -27,12 +31,14 @@ cp .env.example .env
 | `LLM_MODEL` | ✅ | Modèle LLM de génération |
 | `EMBED_BASE_URL` | ✅ | URL de l'endpoint embedding |
 | `EMBED_MODEL` | ✅ | Modèle d'embedding (ex: bge-m3) |
-| `PATH_CA` | ✅ | Chemin vers le certificat SSL |
+| `PATH_CA` | Non | Chemin vers un certificat SSL custom (défaut: certificats système) |
 | `PATH_LOGS` | Non | Répertoire des logs (défaut: `./logs`) |
-| `CHROMA_PERSIST_DIR` | Non | Répertoire ChromaDB (défaut: `./chroma_db`) |
+| `CHROMA_PERSIST_DIR` | Non | Répertoire ChromaDB (défaut: `./chroma_db`, surchargeable via `--chroma_db`) |
 | `EMBED_BATCH_SIZE` | Non | Taille de batch embedding (défaut: `128`) |
-| `RETRIEVAL_TOP_K` | Non | Chunks par recherche (défaut: `5`) |
-| `MAX_CONTEXT_CHARS` | Non | Taille max du contexte LLM (défaut: `8000`) |
+| `RETRIEVAL_TOP_K` | Non | Chunks par recherche (défaut: `10`) |
+| `MAX_RERANK` | Non | Résultats récupérés avant reranking (défaut: `500`) |
+| `MAX_CONTEXT_CHARS` | Non | Taille max du contexte LLM (défaut: `14000`) |
+| `MAX_EMBED_CHARS` | Non | Taille max d'un chunk pour l'embedding (défaut: `2000`) |
 | `MAX_HISTORY_TURNS` | Non | Tours de conversation mémorisés (défaut: `5`) |
 
 ---
@@ -40,8 +46,8 @@ cp .env.example .env
 ## 🖥️ Utilisation en ligne de commande
 
 ```bash
-# Indexer une ou plusieurs codebases (à faire avant toute query)
-python mcp_rag_server.py --index D:\mon\projet docs
+# Indexer une codebase (à faire avant toute query) — un seul répertoire par appel
+python mcp_rag_server.py --index D:\mon\projet
 
 # Interroger la codebase (mode interactif avec mémoire)
 python mcp_rag_server.py --query
@@ -54,6 +60,9 @@ python mcp_rag_server.py --debug-chunk mon_fichier.cpp
 
 # Lancer le serveur MCP (pour Continue / Claude)
 python mcp_rag_server.py
+
+# Utiliser une base ChromaDB différente (optionnel, valable pour toutes les commandes)
+python mcp_rag_server.py --chroma_db D:\autre\chroma_db --index D:\mon\projet
 ```
 
 > ⚠️ **Important** : l'indexation peut prendre plusieurs minutes sur une large codebase.
@@ -65,12 +74,9 @@ python mcp_rag_server.py
 
 | Outil | Description |
 |---|---|
-| `index_codebase` | Indexe une codebase dans ChromaDB (avec cache SHA-256) |
-| `query_codebase` | Question en langage naturel sur le code indexé |
-| `analyze_file` | Analyse un fichier avec contexte RAG |
-| `analyze_code` | Analyse un snippet de code fourni directement |
-| `get_index_stats` | Statistiques de la base vectorielle |
-| `clear_index` | Vide complètement la base |
+| `index` | Indexe une codebase dans ChromaDB (avec cache SHA-256), n'écrase pas les données existantes |
+| `query` | Question en langage naturel sur le code indexé |
+| `clean` | Vide complètement la base vectorielle (destructif) |
 
 ---
 
@@ -87,7 +93,7 @@ mcp_rag_server/
     `-- ...
 ```
 
-Les PDFs seront indexés si le répertoire contenant `docs/` est passé à `--index`, ou si vous passez explicitement `docs` comme argument. Le chunking se fait par section selon la table des matières (TOC), avec le numéro de page en métadonnée pour citer les sources dans les réponses LLM.
+Les PDFs sont indexés automatiquement dès lors que `docs/` est un sous-répertoire (scan récursif) du répertoire passé à `--index`. Pour l'indexer isolément, lancez une commande `--index` dédiée sur ce dossier (`--index` n'accepte qu'un seul répertoire par appel). Le chunking se fait par section selon la table des matières (TOC), avec le numéro de page en métadonnée pour citer les sources dans les réponses LLM.
 
 > 💡 Les PDFs doivent être natifs (générés depuis Word, Confluence, wiki...), pas des scans.
 
@@ -147,7 +153,7 @@ Le cache SHA-256 garantit que seuls les fichiers modifiés sont re-embeddés lor
 
 ```python
 EXCLUDED_ROOT_DIRS = {"Delivery", "Build", "test", "tests", "OSS", "SDD"}
-EXCLUDED_DIRS      = {"__pycache__", ".git", ".venv", "venv", "node_modules"}
+EXCLUDED_DIRS      = {"compVideoLib", "lib_ModuleVideoGeneration", "__pycache__", ".git", ".venv", "venv", "node_modules"}
 ```
 
 Modifiez `indexer.py` pour adapter à votre projet.

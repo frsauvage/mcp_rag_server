@@ -8,7 +8,7 @@ This guide explains how to install, configure, and run the MCP RAG Server (Pytho
 
 ## 🐍 Python
 
-- Python 3.13+
+- Python 3.11+ (voir `requires-python` dans `pyproject.toml`)
 - Should be installed manually (zip-based installation supported)
 
 ⚠️ Do NOT modify your own `PYTHON_HOME` if ever **MTG** software is installed  
@@ -141,6 +141,12 @@ mcpServers:
 
 - Answers questions using RAG over indexed code
 
+# 📁 AGENT.md / MISTRAL.md (target codebase)
+
+An `AGENT.md` or `MISTRAL.md` file placed at the root of the **target directory** (the codebase you pass to `index()` / `--index`) must list the directories to include in the indexation.
+
+⚠️ This file describes the CIBLE (the codebase being indexed), not the MCP RAG server itself.
+
 # 🔄 Workflows
 
 ## First usage
@@ -203,7 +209,7 @@ If MCP fails:
 
 # ✅ Summary
 
-- Python 3.13+
+- Python 3.11+
 - venv or uv supported
 - MCP exposes 3 tools
 - no automatic reset

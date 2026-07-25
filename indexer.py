@@ -12,15 +12,32 @@ Il ne contient pas de logique d'embedding ni de retrieval.
 """
 from __future__ import annotations
 import asyncio
+import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
+from langchain_core.messages import HumanMessage
+
 from chunker import chunk_file, ALL_EXTENSIONS, CodeChunk
 from store import CodeStore
+from mcp_rag_client_llm import llm_client
 
 logger = logging.getLogger("indexer")
+
+AGENT_EXCLUSIONS_PROMPT = """Voici le contenu du fichier AGENT.md à la racine d'un projet :
+
+{agent_file_content}
+
+Cherche UNIQUEMENT une section décrivant des exclusions de répertoires pour le RAG de recherche \
+(indexation sémantique du code). Ignore tout le reste du fichier (règles de comportement d'agent, \
+autres instructions, etc.).
+
+Réponds UNIQUEMENT avec un tableau JSON de chemins de répertoires relatifs à la racine à exclure. \
+Si aucune exclusion de ce type n'est trouvée, réponds [].
+Exemple : ["legacy", "vendor/third_party"]"""
 
 EXCLUDED_FILENAMES = {
     "license.py", "licence.py", "copyright.py",
@@ -89,8 +106,10 @@ class Indexer:
         """
         Indexe un répertoire.
 
-        Les exclusions de sous-répertoires ne sont pas gérées ici : elles sont
-        extraites en amont via le prompt extract_dirs (LLM) sur un seul chemin racine.
+        Si un fichier AGENT.md existe à la racine du répertoire, il est lu et
+        soumis au LLM pour en extraire d'éventuelles exclusions de répertoires
+        propres au RAG de recherche (voir _get_agent_md_exclusions). En l'absence
+        de AGENT.md, aucune exclusion supplémentaire n'est appliquée.
 
         Args:
             directory    : Répertoire à indexer
@@ -110,7 +129,11 @@ class Indexer:
             logger.info("force_reindex=True → vidage de la base")
             self.store.clear()
 
-        files = self._scan_files(path, recursive)
+        agent_exclusions = await self._get_agent_md_exclusions(path)
+        if agent_exclusions:
+            logger.info(f"Exclusions RAG issues de AGENT.md : {sorted(agent_exclusions)}")
+
+        files = self._scan_files(path, recursive, agent_exclusions)
         logger.info(f"Scan : {len(files)} fichiers trouvés dans {path}")
 
         all_chunks: List[CodeChunk] = []
@@ -141,7 +164,12 @@ class Indexer:
         )
         return report
 
-    def _scan_files(self, dir_path: Path, recursive: bool) -> List[Path]:
+    def _scan_files(
+        self,
+        dir_path: Path,
+        recursive: bool,
+        extra_excluded_prefixes: frozenset[str] = frozenset(),
+    ) -> List[Path]:
         """Retourne les fichiers de code supportés dans le répertoire."""
         pattern = "**/*" if recursive else "*"
         return [
@@ -151,4 +179,53 @@ class Indexer:
             and p.name.lower() not in EXCLUDED_FILENAMES
             and not any(part.lower() in EXCLUDED_DIRS for part in p.relative_to(dir_path).parts)
             and p.relative_to(dir_path).parts[0] not in EXCLUDED_ROOT_DIRS
+            and not _is_under_excluded_prefix(p.relative_to(dir_path).parent, extra_excluded_prefixes)
         ]
+
+    async def _get_agent_md_exclusions(self, dir_path: Path) -> frozenset[str]:
+        """
+        Lit AGENT.md à la racine du répertoire indexé (s'il existe) et demande
+        au LLM d'en extraire les exclusions de répertoires propres au RAG de
+        recherche. Retourne un ensemble vide si AGENT.md est absent, illisible,
+        ou si le LLM ne trouve/renvoie rien d'exploitable.
+        """
+        agent_file = dir_path / "AGENT.md"
+        if not agent_file.is_file():
+            return frozenset()
+
+        try:
+            content = agent_file.read_text(encoding="utf-8-sig", errors="replace")
+        except Exception as e:
+            logger.warning(f"Lecture de {agent_file} échouée : {e}")
+            return frozenset()
+
+        if not llm_client:
+            logger.warning("llm_client non configuré — exclusions AGENT.md ignorées")
+            return frozenset()
+
+        prompt = AGENT_EXCLUSIONS_PROMPT.format(agent_file_content=content)
+
+        try:
+            message = HumanMessage(content=prompt)
+            response = await asyncio.to_thread(llm_client.invoke, [message])
+            raw = str(response.content).strip()
+            raw = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+            excluded = json.loads(raw)
+            if not isinstance(excluded, list):
+                raise ValueError("réponse LLM non conforme (tableau JSON attendu)")
+            return frozenset(str(p).strip().strip("/\\") for p in excluded if str(p).strip())
+        except Exception as e:
+            logger.warning(f"Extraction des exclusions AGENT.md échouée : {e}")
+            return frozenset()
+
+
+def _is_under_excluded_prefix(rel_dir: Path, excluded_prefixes: frozenset[str]) -> bool:
+    """True si rel_dir est égal à ou sous un des chemins de excluded_prefixes."""
+    if not excluded_prefixes:
+        return False
+    parts = rel_dir.parts
+    for prefix in excluded_prefixes:
+        prefix_parts = Path(prefix).parts
+        if parts[:len(prefix_parts)] == prefix_parts:
+            return True
+    return False

@@ -2,14 +2,11 @@
 """
 mcp_rag_server.py — Serveur MCP avec RAG complet sur codebase Python/C++
 
-Point d'entrée du projet. Expose 6 outils MCP :
+Point d'entrée du projet. Expose 3 outils MCP :
 
-  index_codebase    Indexe une codebase dans ChromaDB (avec cache par hash)
-  query_codebase    Question en langage naturel -> RAG -> reponse LLM
-  analyze_code      Analyse un snippet de code fourni directement
-  analyze_file      Lit un fichier et l'analyse (avec contexte RAG)
-  get_index_stats   Statistiques de la base vectorielle
-  clear_index       Vide la base (pour une reindexation complete)
+  index   Indexe une codebase dans ChromaDB (avec cache par hash)
+  query   Question en langage naturel -> RAG -> reponse LLM
+  clean   Vide la base (pour une reindexation complete)
 
 Architecture interne :
   mcp_rag_server.py

@@ -210,7 +210,7 @@ class CodeStore:
                 )
                 file_embedded += len(batch)
                 total += len(batch)
-                logger.info(f"  ✓ {total} chunks indexés")
+                logger.debug(f"  ✓ {total} chunks indexés pour {file_path}")
 
             # Hash sauvegardé uniquement si TOUS les chunks du fichier sont embeddés
             if file_embedded == len(file_chunks):
