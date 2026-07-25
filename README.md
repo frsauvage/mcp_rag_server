@@ -8,9 +8,30 @@ Serveur MCP qui permet à un LLM de comprendre et analyser une large codebase (P
 
 See [INSTALL](INSTALL.md)
 
-## 📄 AGENT.md (ce projet)
+## 📄 AGENT.md
 
-Le fichier [`AGENT.md`](AGENT.md) à la racine de CE projet est là pour permettre l'installation MCP dans ces sources uniquement : il définit le comportement de l'agent (system prompt) qui pilote les outils MCP exposés par ce serveur.
+### Dans ce projet (la source)
+
+Rôle : le fichier [`AGENT.md`](AGENT.md) à la racine de ce projet - source du serveur MCP - est là pour permettre l'installation MCP dans ces sources uniquement : il définit le comportement de l'agent (system prompt) qui pilote les outils MCP exposés par ce serveur.
+
+### Dans le répertoire indexé (la cible)
+
+Rôle : lors d'un `--index` / `index()`, si un fichier `AGENT.md` existe à la racine du répertoire **cible** (le répertoire indexé, pas ce projet), il est lu et soumis au LLM pour en extraire d'éventuelles exclusions de répertoires propres au RAG de recherche, en plus des exclusions par défaut d'`indexer.py`.
+
+- **Pas d'`AGENT.md`** à cette racine → aucune exclusion supplémentaire n'est appliquée.
+- **Avec `AGENT.md`** → décrivez une section dédiée aux exclusions RAG, par exemple :
+
+  ```markdown
+  ## Exclusions RAG de recherche
+
+  Exclure de l'indexation :
+  - legacy
+  - vendor/third_party
+  ```
+
+- Le LLM ne cherche **que** cette section : le reste du fichier (règles de comportement d'agent, autres instructions...) est ignoré pour cet usage.
+- Les chemins renvoyés sont relatifs à la racine indexée.
+- Seul le nom exact `AGENT.md` est reconnu (pas `MISTRAL.md`).
 
 ## 🚀 Configuration
 
