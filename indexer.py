@@ -35,9 +35,10 @@ Cherche UNIQUEMENT une section décrivant des exclusions de répertoires pour le
 (indexation sémantique du code). Ignore tout le reste du fichier (règles de comportement d'agent, \
 autres instructions, etc.).
 
-Réponds UNIQUEMENT avec un tableau JSON de chemins de répertoires relatifs à la racine à exclure. \
-Si aucune exclusion de ce type n'est trouvée, réponds [].
-Exemple : ["legacy", "vendor/third_party"]"""
+Réponds UNIQUEMENT avec un objet JSON de la forme {{"exclusions": [...]}} contenant les chemins de \
+répertoires relatifs à la racine à exclure. Si aucune exclusion de ce type n'est trouvée, réponds \
+{{"exclusions": []}}.
+Exemple : {{"exclusions": ["legacy", "vendor/third_party"]}}"""
 
 EXCLUDED_FILENAMES = {
     "license.py", "licence.py", "copyright.py",
@@ -207,15 +208,31 @@ class Indexer:
 
         try:
             message = HumanMessage(content=prompt)
-            response = await asyncio.to_thread(llm_client.invoke, [message])
+            # response_format force le mode JSON côté serveur (endpoint OpenAI-
+            # compatible d'Ollama) plutôt que de compter uniquement sur la
+            # consigne du prompt. .bind() ne modifie pas le llm_client partagé
+            # (utilisé par ailleurs pour les réponses RAG en texte libre).
+            structured_llm = llm_client.bind(response_format={"type": "json_object"})
+            response = await asyncio.to_thread(structured_llm.invoke, [message])
             raw = str(response.content).strip()
-            raw = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
-            excluded = json.loads(raw)
+        except Exception as e:
+            logger.warning(f"Appel LLM pour les exclusions AGENT.md échoué : {e}")
+            return frozenset()
+
+        try:
+            # Filet de sécurité : même en mode JSON, un modèle local peut ajouter
+            # du texte autour — on extrait le premier objet JSON trouvé plutôt
+            # que d'exiger que toute la réponse soit du JSON pur.
+            match = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+            if not match:
+                raise ValueError("aucun objet JSON trouvé dans la réponse")
+            data = json.loads(match.group(0))
+            excluded = data.get("exclusions", []) if isinstance(data, dict) else data
             if not isinstance(excluded, list):
-                raise ValueError("réponse LLM non conforme (tableau JSON attendu)")
+                raise ValueError("champ 'exclusions' non conforme (liste attendue)")
             return frozenset(str(p).strip().strip("/\\") for p in excluded if str(p).strip())
         except Exception as e:
-            logger.warning(f"Extraction des exclusions AGENT.md échouée : {e}")
+            logger.warning(f"Réponse LLM inexploitable pour les exclusions AGENT.md ({e}) : {raw!r}")
             return frozenset()
 
 
