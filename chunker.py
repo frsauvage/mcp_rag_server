@@ -31,6 +31,19 @@ logger = logging.getLogger("chunker")
 
 ALL_EXTENSIONS  = CODE_EXTENSIONS | PDF_EXTENSIONS | MD_EXTENSIONS | PROTO_EXTENSIONS
 
+# ---------------------------------------------------------------------------
+# Domaine d'embedding (code vs texte) — utilisé par store.py pour router
+# chaque chunk vers le modèle d'embedding et la collection ChromaDB adaptés.
+# ---------------------------------------------------------------------------
+
+CODE_DOMAIN_EXTENSIONS = CODE_EXTENSIONS | PROTO_EXTENSIONS
+TEXT_DOMAIN_EXTENSIONS = PDF_EXTENSIONS | MD_EXTENSIONS
+
+
+def domain_for_path(relative_path: str) -> str:
+    """"code" pour Python/C++/Proto, "text" pour PDF/Markdown."""
+    return "code" if Path(relative_path).suffix.lower() in CODE_DOMAIN_EXTENSIONS else "text"
+
 
 # ---------------------------------------------------------------------------
 # Interface publique

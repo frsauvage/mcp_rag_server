@@ -82,14 +82,18 @@ uv-installer.sh
 # 📦 Project Setup
 
 ## Create your virtual environment
+
 From a `DOS` command, run the following command:
+
 ```bash
 cd /path/to/mcp-rag-server
 uv venv
 ```
 
 ## Activate your virtual environment
+
 From a `DOS` command, run the following command:
+
 ```bash
 cd /path/to/mcp-rag-server
 .venv\Scripts\activate.bat
@@ -190,6 +194,7 @@ query(question)
 ollama pull nomic-embed-text
 ollama pull mistral
 ollama pull gpt-oss
+ollama pull jina-embeddings-v2-base-code
 
 Update models:
 

@@ -42,6 +42,7 @@ def chunk_markdown(path: Path, root: Path) -> List[DocChunk]:
                         page_end=page,
                         level=part.count('#', 0, part.index(' ')),
                         file_hash=fhash,
+                        language="markdown",
                     ))
                     page += 1
                 title = part.lstrip('#').strip()
@@ -64,6 +65,7 @@ def chunk_markdown(path: Path, root: Path) -> List[DocChunk]:
                 page_end=page,
                 level=1,
                 file_hash=fhash,
+                language="markdown",
             ))
 
         logger.info(f"{path.name} : {len(chunks)} sections extraites")

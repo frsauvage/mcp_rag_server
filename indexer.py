@@ -43,6 +43,7 @@ Exemple : {{"exclusions": ["legacy", "vendor/third_party"]}}"""
 EXCLUDED_FILENAMES = {
     "license.py", "licence.py", "copyright.py",
     "setup.py", "conf.py",  # souvent du boilerplate pur
+    "__init__.py",
 }
 
 EXCLUDED_PATTERNS = {"**/generated/**", "**/migrations/**", "**/_version.py", "**/rtbx_**"}

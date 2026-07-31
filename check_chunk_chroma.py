@@ -1,23 +1,61 @@
+import argparse
+import os
 import chromadb
 
-def inspect_chunks_for_file(project_root: str, relative_file_path: str):
+def _select_collection(client: "chromadb.ClientAPI", requested_name: str) -> str | None:
+    """
+    Recupere le nom de collection a utiliser. Si `requested_name` n'existe pas
+    dans la base, propose interactivement la liste des collections disponibles
+    (l'utilisateur n'a generalement pas cette liste sous la main).
+    """
+    existing = [c.name for c in client.list_collections()]
+
+    if requested_name in existing:
+        return requested_name
+
+    print(f"Collection '{requested_name}' introuvable dans cette base ChromaDB.")
+    if not existing:
+        print("Aucune collection disponible dans cette base.")
+        return None
+
+    print("Collections disponibles :")
+    for idx, name in enumerate(existing, 1):
+        print(f"  {idx}. {name}")
+
+    choice = input("Selectionnez une collection (numero ou nom, Entree pour annuler) : ").strip()
+    if not choice:
+        return None
+    if choice.isdigit() and 1 <= int(choice) <= len(existing):
+        return existing[int(choice) - 1]
+    if choice in existing:
+        return choice
+
+    print(f"Choix invalide : '{choice}'")
+    return None
+
+
+def inspect_chunks_for_file(project_root: str, relative_file_path: str, collection_name: str = "code_chunks"):
     """
     Se connecte à ChromaDB, extrait et affiche tous les chunks
     associés à un fichier spécifique.
     """
-    # 1. Connexion au client ChromaDB (adaptez le chemin selon store.py)
+    # 1. Connexion au client ChromaDB (la base est stockee dans le repertoire CIBLE, cf. store.py)
     # Si vous utilisez un client persistant local :
-    client = chromadb.PersistentClient(path="./chroma_db")
-    
+    chroma_path = os.path.join(project_root, "chroma_db")
+    client = chromadb.PersistentClient(path=chroma_path)
+
     # Si vous utilisez le client HTTP/Serveur, décommentez plutôt ceci :
     # client = chromadb.HttpClient(host="localhost", port=8000)
 
-    # 2. Récupération de la collection (remplacez par le vrai nom de votre collection)
-    collection_name = "code_chunks"
+    # 2. Récupération de la collection (code_chunks par défaut, sélection interactive sinon)
+    collection_name = _select_collection(client, collection_name)
+    if collection_name is None:
+        return
+
     try:
         collection = client.get_collection(name=collection_name)
     except Exception as e:
-        print(f"Impossible de trouver la collection '{collection_name}': {e}")
+        print(f"Impossible d'ouvrir la collection '{collection_name}': {e}")
         return
 
     # 3. Requête avec filtre sur les métadonnées
@@ -71,10 +109,36 @@ def inspect_chunks_for_file(project_root: str, relative_file_path: str):
         print(chunk["content"])
         print(f"{"="*60}\n")
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="check_chunk_chroma.py",
+        description="Affiche les chunks stockes en base ChromaDB pour un fichier donne.",
+    )
+    parser.add_argument(
+        "-r", "--root",
+        dest="dossier_projet",
+        metavar="DOSSIER_PROJET",
+        required=True,
+        help="Racine du projet indexe (ex: 'G:\\Mon Drive\\Cours\\Cours C++')",
+    )
+    parser.add_argument(
+        "-f", "--file",
+        dest="fichier_a_verifier",
+        metavar="FICHIER",
+        required=True,
+        help="Chemin relatif du fichier tel qu'indexe (ex: 'Formation\\async.cpp')",
+    )
+    parser.add_argument(
+        "-c", "--collection",
+        dest="collection_name",
+        metavar="COLLECTION",
+        default="code_chunks",
+        help="Nom de la collection ChromaDB a interroger (defaut : code_chunks). "
+             "Si introuvable, la liste des collections disponibles est proposee interactivement.",
+    )
+    return parser
+
+
 if __name__ == "__main__":
-    # --- CONFIGURATION DE TEST ---
-    # Le chemin relatif tel qu'il apparaîtrait en faisant : str(path.relative_to(root))
-    FICHIER_A_VERIFIER = r'Formation\async.cpp' 
-    DOSSIER_PROJET = "G:\Mon Drive\Cours\Cours C++"
-    
-    inspect_chunks_for_file(DOSSIER_PROJET, FICHIER_A_VERIFIER)
+    args = _build_arg_parser().parse_args()
+    inspect_chunks_for_file(args.dossier_projet, args.fichier_a_verifier, args.collection_name)

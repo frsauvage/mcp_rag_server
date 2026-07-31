@@ -40,6 +40,7 @@ class DocChunk:
     level: int               # Niveau hiérarchique TOC (1=H1, 2=H2, ...)
     file_hash: str
     chapter: str = ""
+    language: str = "pdf"    # "pdf" | "markdown" — surchargé par md_chunker.py
 
     @property
     def chunk_id(self) -> str:
@@ -50,7 +51,7 @@ class DocChunk:
         return {
             "file_path": self.file_path,
             "relative_path": self.relative_path,
-            "language": "pdf",
+            "language": self.language,
             "chunk_type": self.chunk_type,
             "symbol_name": self.symbol_name,
             "chapter": self.chapter,

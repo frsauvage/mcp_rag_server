@@ -127,4 +127,49 @@ except Exception as e:
     logger.error(f"  Détail: {e}")
     logger.info(f"✗ Erreur embedding: {e}")
 
+# ---------------------------------------------------------------------------
+# Embedding double-modèle : un modèle "code" (Python/C++/Proto) et un modèle
+# "texte" (PDF/Markdown), chacun avec son propre endpoint/clé possible.
+# Sans configuration explicite (EMBED_*_CODE / EMBED_*_TEXT), les deux
+# domaines retombent sur EMBED_MODEL/EMBED_BASE_URL — comportement identique
+# à avant (un seul modèle pour tout).
+# ---------------------------------------------------------------------------
+
+EMBED_MODEL_CODE    = os.getenv("EMBED_MODEL_CODE", EMBED_MODEL)
+EMBED_BASE_URL_CODE = os.getenv("EMBED_BASE_URL_CODE", EMBED_BASE_URL)
+EMBED_API_KEY_CODE  = os.getenv("EMBED_API_KEY_CODE", API_KEY)
+
+EMBED_MODEL_TEXT    = os.getenv("EMBED_MODEL_TEXT", EMBED_MODEL)
+EMBED_BASE_URL_TEXT = os.getenv("EMBED_BASE_URL_TEXT", EMBED_BASE_URL)
+EMBED_API_KEY_TEXT  = os.getenv("EMBED_API_KEY_TEXT", API_KEY)
+
+logger.info(f"EMBED_MODEL_CODE={EMBED_MODEL_CODE} (base_url={EMBED_BASE_URL_CODE})")
+logger.info(f"EMBED_MODEL_TEXT={EMBED_MODEL_TEXT} (base_url={EMBED_BASE_URL_TEXT})")
+
+# Le client "texte" est le client existant — aucun changement de comportement
+# par défaut (les appelants qui ne précisent pas de domaine continuent à
+# utiliser exactement ce client/modèle).
+embed_client_text = embed_client
+
+# Le client "code" ne recrée une instance OpenAI séparée que si sa config
+# diffère réellement de celle du client texte (endpoint et clé identiques →
+# inutile d'ouvrir une deuxième connexion HTTP).
+if (EMBED_BASE_URL_CODE, EMBED_API_KEY_CODE) == (EMBED_BASE_URL_TEXT, EMBED_API_KEY_TEXT):
+    embed_client_code = embed_client_text
+else:
+    embed_client_code = OpenAI(
+        api_key=EMBED_API_KEY_CODE,
+        base_url=EMBED_BASE_URL_CODE,
+        http_client=client
+    )
+    try:
+        logger.info("Test de connexion à l'API embedding CODE...")
+        embed_client_code.embeddings.create(model=EMBED_MODEL_CODE, input=["test"])
+        logger.info(f"✓ Embedding CODE OK ({EMBED_MODEL_CODE})")
+    except Exception as e:
+        logger.error(f"ERREUR: Connexion au service d'embedding CODE échouée!")
+        logger.error(f"  URL: {EMBED_BASE_URL_CODE}")
+        logger.error(f"  Modèle: {EMBED_MODEL_CODE}")
+        logger.error(f"  Détail: {e}")
+
 logger.info("OpenAI embedded client created")

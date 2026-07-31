@@ -2,10 +2,10 @@ from pathlib import Path
 from indexer import Indexer
 from store import CodeStore
 
-store = CodeStore(persist_dir="./chroma_db")
-indexer = Indexer(store)
-
 dir_path = Path('G:/Mon Drive/Cours/Cours C++')
+
+store = CodeStore(persist_dir=str(dir_path / "chroma_db"))
+indexer = Indexer(store)
 files = indexer._scan_files(dir_path, recursive=True)
 
 print(f'Fichiers trouvés: {len(files)}')

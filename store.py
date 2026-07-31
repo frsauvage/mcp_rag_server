@@ -23,9 +23,9 @@ from chromadb.config import Settings
 
 # Import du client embedding depuis le module dédié
 from mcp_rag_client_llm import embed_client
-from code_chunker import CODE_EXTENSIONS
 
 from code_chunker import CodeChunk
+from chunker import domain_for_path
 from embedder import embed_texts, embed_query
 
 logger = logging.getLogger("store")
@@ -44,11 +44,18 @@ MAX_RERANK = int(os.getenv("MAX_RERANK", "500"))  # Nombre de résultats à réc
 
 class CodeStore:
     """
-    Encapsule ChromaDB + embedding Mistral.
+    Encapsule ChromaDB + embedding (deux modèles : code et texte).
 
-    Deux collections ChromaDB internes :
-      - "code_chunks"  : les chunks avec leurs embeddings (collection principale)
+    Trois collections ChromaDB internes :
+      - "code_chunks"  : chunks Python/C++/Proto, embeddés avec le modèle "code"
+      - "doc_chunks"   : chunks PDF/Markdown, embeddés avec le modèle "texte"
       - "file_hashes"  : file_path → SHA-256 (lookup O(1) pour le cache, sans embedding)
+
+    Deux collections séparées car ChromaDB indexe chaque collection avec une
+    dimension de vecteur fixe (HNSW) — deux modèles d'embedding aux dimensions
+    différentes ne peuvent pas cohabiter dans la même collection. Le domaine
+    (code vs texte) est déterminé par l'extension du fichier via
+    chunker.domain_for_path().
 
     Exemple d'utilisation (depuis indexer.py ou retriever.py) :
         store = CodeStore(persist_dir="./chroma_db")
@@ -57,6 +64,7 @@ class CodeStore:
     """
 
     COLLECTION_NAME      = "code_chunks"
+    DOC_COLLECTION_NAME  = "doc_chunks"
     HASH_COLLECTION_NAME = "file_hashes"
 
     def __init__(self, persist_dir: str):
@@ -85,11 +93,18 @@ class CodeStore:
             else:
                 raise
 
-        # Collection principale : embeddings + métadonnées
+        # Collection code : embeddings + métadonnées (Python/C++/Proto)
         # embedding_function=None : on fournit nos propres vecteurs via gpt-embed.
         # Sans ça, ChromaDB tente de télécharger un modèle HuggingFace au démarrage.
         self._collection = self._client.get_or_create_collection(
             name=self.COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=None,
+        )
+
+        # Collection texte : embeddings + métadonnées (PDF/Markdown), modèle distinct
+        self._doc_collection = self._client.get_or_create_collection(
+            name=self.DOC_COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
             embedding_function=None,
         )
@@ -104,10 +119,14 @@ class CodeStore:
         self._embedder = embed_client
 
         logger.info(
-            f"CodeStore prêt — {self._collection.count()} chunks, "
+            f"CodeStore prêt — {self._collection.count()} chunks code, "
+            f"{self._doc_collection.count()} chunks doc, "
             f"{self._hash_collection.count()} fichiers indexés "
             f"(persist: {self.persist_dir})"
         )
+
+    def _collection_for(self, domain: str):
+        return self._collection if domain == "code" else self._doc_collection
 
     # ------------------------------------------------------------------
     # Cache
@@ -132,11 +151,12 @@ class CodeStore:
         )
 
     def _delete_file_chunks(self, file_path: str):
-        """Supprime tous les chunks d'un fichier (avant de le ré-indexer)."""
-        try:
-            self._collection.delete(where={"file_path": file_path})
-        except Exception as e:
-            logger.warning(f"Suppression chunks échouée pour {file_path}: {e}")
+        """Supprime tous les chunks d'un fichier (avant de le ré-indexer), dans les deux collections."""
+        for collection in (self._collection, self._doc_collection):
+            try:
+                collection.delete(where={"file_path": file_path})
+            except Exception as e:
+                logger.warning(f"Suppression chunks échouée pour {file_path}: {e}")
 
     # ------------------------------------------------------------------
     # Indexation
@@ -193,16 +213,21 @@ class CodeStore:
 
         total = 0
         for file_path, file_chunks in by_file.items():
+            # Le domaine (code vs texte) est le même pour tous les chunks d'un
+            # fichier donné : il ne dépend que de son extension.
+            domain = domain_for_path(file_chunks[0].relative_path)
+            collection = self._collection_for(domain)
+
             # Embedder tous les chunks du fichier
             file_embedded = 0
             for i in range(0, len(file_chunks), EMBED_BATCH_SIZE):
                 batch = file_chunks[i : i + EMBED_BATCH_SIZE]
-                embeddings = self._embed_with_retry([c.content for c in batch])
+                embeddings = self._embed_with_retry([c.content for c in batch], domain)
                 if embeddings is None:
                     logger.error(f"❌ Batch échoué pour {file_path} ({len(batch)} chunks) — fichier ignoré")
                     logger.info(f"  ❌ Erreur: Embedding échoué pour {file_path}")
                     break
-                self._collection.upsert(
+                collection.upsert(
                     ids=[c.chunk_id for c in batch],
                     documents=[c.content for c in batch],
                     embeddings=embeddings,
@@ -210,7 +235,7 @@ class CodeStore:
                 )
                 file_embedded += len(batch)
                 total += len(batch)
-                logger.debug(f"  ✓ {total} chunks indexés pour {file_path}")
+                logger.debug(f"  ✓ {total} chunks indexés pour {file_path} (domaine={domain})")
 
             # Hash sauvegardé uniquement si TOUS les chunks du fichier sont embeddés
             if file_embedded == len(file_chunks):
@@ -220,12 +245,25 @@ class CodeStore:
 
         return total
 
-    def _embed_with_retry(self, texts: List[str]) -> Optional[List[List[float]]]:
-        return embed_texts(texts)
+    def _embed_with_retry(self, texts: List[str], domain: str = "text") -> Optional[List[List[float]]]:
+        return embed_texts(texts, domain=domain)
 
     # ------------------------------------------------------------------
     # Retrieval bas niveau (utilisé par retriever.py)
     # ------------------------------------------------------------------
+
+    # Langues connues par domaine, pour restreindre la recherche à une seule
+    # collection quand language_filter cible sans ambiguïté un domaine.
+    _CODE_LANGUAGES = {"python", "cpp", "proto"}
+    _TEXT_LANGUAGES = {"pdf", "markdown"}
+
+    def _resolve_domains(self, language_filter: Optional[str]) -> List[str]:
+        """Détermine quelle(s) collection(s) interroger selon language_filter."""
+        if language_filter in self._CODE_LANGUAGES:
+            return ["code"]
+        if language_filter in self._TEXT_LANGUAGES:
+            return ["text"]
+        return ["code", "text"]
 
     def similarity_search(
         self,
@@ -235,14 +273,15 @@ class CodeStore:
         chapter_filter: Optional[str] = None,
     ) -> List[dict]:
         """
-        Recherche hybride :
+        Recherche hybride, sur une ou les deux collections (code/texte) selon
+        language_filter :
         1. Recherche par mots exacts (lexicale)
-        2. Recherche sémantique (vectorielle)
+        2. Recherche sémantique (vectorielle, embedding de la question calculé
+           séparément par domaine — modèle code vs modèle texte)
         3. Fusion avec priorité absolue aux correspondances lexicales exactes,
            puis application du reranking par type de fichier.
         """
-        if self._collection.count() == 0:
-            return []
+        domains = self._resolve_domains(language_filter)
 
         # Construction des filtres de métadonnées communs
         where_clause = {}
@@ -251,60 +290,66 @@ class CodeStore:
         if chapter_filter:
             where_clause["chapter"] = chapter_filter
 
-        # ------------------------------------------------------------------
-        # ETAPE 1 : Recherche lexicale (Mots exacts)
-        # ------------------------------------------------------------------
-        exact_chunks = []
-        try:
-            # ChromaDB permet de chercher des sous-chaînes dans les documents
-            lexical_results = self._collection.get(
-                where_document={"$contains": question},
-                where=where_clause if where_clause else None,
-                include=["documents", "metadatas"],
-                limit=MAX_RERANK
-            )
-            
-            if lexical_results and lexical_results["ids"]:
-                for doc, meta in zip(lexical_results["documents"], lexical_results["metadatas"]):
-                    exact_chunks.append({
-                        "content": doc,
-                        "metadata": meta,
-                        "distance": 0.0,  # Score parfait (0.0 = distance minimale) car mot exact
-                        "lexical_match": True # Flag pour le tri personnalisé
-                    })
-        except Exception as e:
-            logger.warning(f"Recherche lexicale échouée: {e}")
+        exact_chunks: List[dict] = []
+        semantic_chunks: List[dict] = []
 
-        # ------------------------------------------------------------------
-        # ETAPE 2 : Recherche sémantique (Vectorielle)
-        # ------------------------------------------------------------------
-        query_embedding = embed_query(question)
-        semantic_chunks = []
-        
-        if query_embedding is not None:
-            fetch_size = min(MAX_RERANK, self._collection.count())
-            kwargs = dict(
-                query_embeddings=[query_embedding],
-                n_results=fetch_size,
-                include=["documents", "metadatas", "distances"],
-            )
-            if where_clause:
-                kwargs["where"] = where_clause
+        for domain in domains:
+            collection = self._collection_for(domain)
+            if collection.count() == 0:
+                continue
 
-            results = self._collection.query(**kwargs)
-            
-            if results and results["documents"]:
-                for doc, meta, dist in zip(
-                    results["documents"][0],
-                    results["metadatas"][0],
-                    results["distances"][0],
-                ):
-                    semantic_chunks.append({
-                        "content": doc,
-                        "metadata": meta,
-                        "distance": dist,
-                        "lexical_match": False
-                    })
+            # ------------------------------------------------------------------
+            # ETAPE 1 : Recherche lexicale (Mots exacts)
+            # ------------------------------------------------------------------
+            try:
+                # ChromaDB permet de chercher des sous-chaînes dans les documents
+                lexical_results = collection.get(
+                    where_document={"$contains": question},
+                    where=where_clause if where_clause else None,
+                    include=["documents", "metadatas"],
+                    limit=MAX_RERANK
+                )
+
+                if lexical_results and lexical_results["ids"]:
+                    for doc, meta in zip(lexical_results["documents"], lexical_results["metadatas"]):
+                        exact_chunks.append({
+                            "content": doc,
+                            "metadata": meta,
+                            "distance": 0.0,  # Score parfait (0.0 = distance minimale) car mot exact
+                            "lexical_match": True # Flag pour le tri personnalisé
+                        })
+            except Exception as e:
+                logger.warning(f"Recherche lexicale échouée (domaine={domain}): {e}")
+
+            # ------------------------------------------------------------------
+            # ETAPE 2 : Recherche sémantique (Vectorielle)
+            # ------------------------------------------------------------------
+            query_embedding = embed_query(question, domain=domain)
+
+            if query_embedding is not None:
+                fetch_size = min(MAX_RERANK, collection.count())
+                kwargs = dict(
+                    query_embeddings=[query_embedding],
+                    n_results=fetch_size,
+                    include=["documents", "metadatas", "distances"],
+                )
+                if where_clause:
+                    kwargs["where"] = where_clause
+
+                results = collection.query(**kwargs)
+
+                if results and results["documents"]:
+                    for doc, meta, dist in zip(
+                        results["documents"][0],
+                        results["metadatas"][0],
+                        results["distances"][0],
+                    ):
+                        semantic_chunks.append({
+                            "content": doc,
+                            "metadata": meta,
+                            "distance": dist,
+                            "lexical_match": False
+                        })
 
         # ------------------------------------------------------------------
         # ETAPE 3 : Fusion et dédoublonnement
@@ -336,11 +381,11 @@ class CodeStore:
     def _rerank_hybrid(self, chunks: List[dict]) -> List[dict]:
         """
         Trie la pile selon l'ordre de priorité suivant :
-        1. Match Lexical (Mot exact) ET Fichier de Code (.py, .cpp...)
+        1. Match Lexical (Mot exact) ET Fichier de Code (.py, .cpp, .proto...)
         2. Match Lexical (Mot exact) ET Autre fichier
         3. Match Sémantique ET Fichier de Code
         4. Match Sémantique ET Autre fichier
-        
+
         Au sein de chaque groupe, les éléments restent triés par distance.
         """
         lexical_code = []
@@ -349,8 +394,7 @@ class CodeStore:
         semantic_other = []
 
         for chunk in chunks:
-            ext = Path(chunk["metadata"].get("relative_path", "")).suffix.lower()
-            is_code = ext in CODE_EXTENSIONS
+            is_code = domain_for_path(chunk["metadata"].get("relative_path", "")) == "code"
             is_lexical = chunk.get("lexical_match", False)
 
             if is_lexical and is_code:
@@ -388,8 +432,12 @@ class CodeStore:
     # ------------------------------------------------------------------
 
     def stats(self) -> dict:
+        code_count = self._collection.count()
+        doc_count = self._doc_collection.count()
         return {
-            "total_chunks": self._collection.count(),
+            "total_chunks": code_count + doc_count,
+            "total_chunks_code": code_count,
+            "total_chunks_doc": doc_count,
             "total_files_indexed": self._hash_collection.count(),
             "persist_dir": str(self.persist_dir),
         }
@@ -404,17 +452,19 @@ class CodeStore:
 
     def clear(self):
         """Vide complètement la base vectorielle."""
-        try:
-            self._client.delete_collection(self.COLLECTION_NAME)
-        except Exception:
-            pass  # Collection might not exist
-        try:
-            self._client.delete_collection(self.HASH_COLLECTION_NAME)
-        except Exception:
-            pass  # Collection might not exist
-        
+        for name in (self.COLLECTION_NAME, self.DOC_COLLECTION_NAME, self.HASH_COLLECTION_NAME):
+            try:
+                self._client.delete_collection(name)
+            except Exception:
+                pass  # Collection might not exist
+
         self._collection = self._client.get_or_create_collection(
             name=self.COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=None,
+        )
+        self._doc_collection = self._client.get_or_create_collection(
+            name=self.DOC_COLLECTION_NAME,
             metadata={"hnsw:space": "cosine"},
             embedding_function=None,
         )
