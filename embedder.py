@@ -1,8 +1,6 @@
 """
 embedder.py — Gestion des embeddings (appel API + retry + truncation)
 """
-from __future__ import annotations
-
 import os
 import logging
 import time

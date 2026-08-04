@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 # Imports stricts depuis le fichier de base commun
-from code_chunker import (
+from chunker_code import (
     CodeChunk,
     _extract_lines,
     _is_worth_chunking,
@@ -14,7 +14,7 @@ from code_chunker import (
     MIN_CHUNK_LINES
 )
 
-logger = logging.getLogger("code_chunker.python")
+logger = logging.getLogger("chunker_code.python")
 
 
 class PythonChunker:

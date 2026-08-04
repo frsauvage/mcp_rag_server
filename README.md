@@ -128,7 +128,7 @@ mcp_rag_server.py        <- Point d'entrée MCP + CLI
     |-- retriever.py     <- Recherche sémantique + construction prompt
     |-- store.py         <- ChromaDB + embedding + cache SHA-256
     |-- chunker.py       <- Chunking syntaxique Python (ast) et C++ (tree-sitter)
-    |-- pdf_chunker.py   <- Chunking PDF par section (TOC)
+    |-- chunker_pdf.py   <- Chunking PDF par section (TOC)
     |-- embedder.py      <- Appels embedding avec retry
     |-- mcp_rag_client_llm.py  <- Configuration LLM + client embedding
     |-- docs/            <- PDFs de documentation à indexer

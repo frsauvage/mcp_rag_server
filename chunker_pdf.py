@@ -1,5 +1,5 @@
 """
-pdf_chunker.py — Chunking de PDFs par section (via table des matières pymupdf)
+chunker_pdf.py — Chunking de PDFs par section (via table des matières pymupdf)
 
 Stratégie :
   - Extraction de la TOC (table des matières) via pymupdf
@@ -7,8 +7,6 @@ Stratégie :
   - Fallback par page si pas de TOC
   - Métadonnées : titre section, page début, page fin, niveau hiérarchique
 """
-from __future__ import annotations
-
 import hashlib
 import logging
 import re
@@ -16,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-logger = logging.getLogger("pdf_chunker")
+logger = logging.getLogger("chunker_pdf")
 
 MIN_SECTION_CHARS = 100  # Section trop courte → ignorée
 MAX_CHUNK_CHARS = 1700   # Limite corps de chunk (header ajouté après, nomic~2000 chars max)
@@ -40,7 +38,7 @@ class DocChunk:
     level: int               # Niveau hiérarchique TOC (1=H1, 2=H2, ...)
     file_hash: str
     chapter: str = ""
-    language: str = "pdf"    # "pdf" | "markdown" — surchargé par md_chunker.py
+    language: str = "pdf"    # "pdf" | "markdown" — surchargé par chunker_md.py
 
     @property
     def chunk_id(self) -> str:

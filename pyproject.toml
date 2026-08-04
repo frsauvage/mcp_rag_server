@@ -28,6 +28,7 @@ dependencies = [
 
     "pydantic>=2.11.0",
     "openai>=2.40.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -47,7 +48,8 @@ py-modules = [
     "indexer",
     "mcp_rag_server",
     "mcp_rag_client_llm",
-    "pdf_chunker",
+    "chunker_pdf",
+    "prompts",
     "retriever",
     "store",
 ]

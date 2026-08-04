@@ -5,8 +5,6 @@ Doit être chargé avant tout import de module projet qui dépend de :
   - mcp_rag_client_llm  (connexion Ollama au démarrage)
   - chromadb            (base vectorielle)
 """
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock

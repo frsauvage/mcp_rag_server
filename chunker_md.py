@@ -1,13 +1,12 @@
-# md_chunker.py
-from __future__ import annotations
+# chunker_md.py
 import hashlib
 import logging
 import re
 from pathlib import Path
 from typing import List
-from pdf_chunker import DocChunk, _extract_chapter, _pdf_hash
+from chunker_pdf import DocChunk, _extract_chapter, _pdf_hash
 
-logger = logging.getLogger("md_chunker")
+logger = logging.getLogger("chunker_md")
 MIN_SECTION_CHARS = 100
 
 MD_EXTENSIONS = {".md", ".rst"}

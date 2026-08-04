@@ -349,8 +349,8 @@ if __name__ == "__main__":
     if args.debug_chunk:
         # python mcp_rag_server.py --debug-chunk chemin/fichier.py
         from chunker import chunk_file
-        from code_chunker import CodeChunk
-        from pdf_chunker import DocChunk
+        from chunker_code import CodeChunk
+        from chunker_pdf import DocChunk
         path = Path(args.debug_chunk)
         chunks = chunk_file(path, path.parent)
         logger.info(f"{len(chunks)} chunks trouves dans {path.name}")

@@ -1,6 +1,4 @@
 """Tests unitaires pour chunker_python.py (PythonChunker)."""
-from __future__ import annotations
-
 from pathlib import Path
 
 from chunker_python import PythonChunker

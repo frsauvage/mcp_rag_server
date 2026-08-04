@@ -11,8 +11,6 @@ C'est ici que réside la logique "comprendre TOUT le code avant de répondre" :
 on ne se contente pas du top-K sémantique, on tire aussi le fil des dépendances
 pour reconstituer le contexte d'interdépendance.
 """
-from __future__ import annotations
-
 import logging
 import os
 from typing import List, Optional

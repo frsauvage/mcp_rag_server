@@ -1,12 +1,10 @@
-"""Tests unitaires pour pdf_chunker.py."""
-from __future__ import annotations
-
+"""Tests unitaires pour chunker_pdf.py."""
 import hashlib
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pdf_chunker import (
+from chunker_pdf import (
     MAX_CHUNK_CHARS,
     MIN_SECTION_CHARS,
     DocChunk,

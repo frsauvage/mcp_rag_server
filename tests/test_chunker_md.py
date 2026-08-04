@@ -1,9 +1,7 @@
-"""Tests unitaires pour md_chunker.py."""
-from __future__ import annotations
-
+"""Tests unitaires pour chunker_md.py."""
 from pathlib import Path
 
-from md_chunker import MIN_SECTION_CHARS, chunk_markdown
+from chunker_md import MIN_SECTION_CHARS, chunk_markdown
 
 
 def _write(tmp_path: Path, name: str, source: str) -> Path:
@@ -53,7 +51,7 @@ Refer to the README for more detailed documentation and examples.
 """
 
     def test_returns_docchunks(self, tmp_path):
-        from pdf_chunker import DocChunk
+        from chunker_pdf import DocChunk
         f = _write(tmp_path, "doc.md", self.CONTENT)
         chunks = chunk_markdown(f, tmp_path)
         assert all(isinstance(c, DocChunk) for c in chunks)

@@ -194,7 +194,7 @@ query(question)
 ollama pull nomic-embed-text
 ollama pull mistral
 ollama pull gpt-oss
-ollama pull jina-embeddings-v2-base-code
+ollama pull unclemusclez/jina-embeddings-v2-base-code:q4
 
 Update models:
 

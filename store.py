@@ -10,8 +10,6 @@ Responsabilités :
 Ce module ne sait rien du MCP ni du LLM de génération : il ne fait que de l'embedding
 et de la recherche vectorielle. C'est le retriever.py qui orchestre la logique RAG.
 """
-from __future__ import annotations
-
 import hashlib
 import logging
 import os
@@ -24,7 +22,7 @@ from chromadb.config import Settings
 # Import du client embedding depuis le module dédié
 from mcp_rag_client_llm import embed_client
 
-from code_chunker import CodeChunk
+from chunker_code import CodeChunk
 from chunker import domain_for_path
 from embedder import embed_texts, embed_query
 

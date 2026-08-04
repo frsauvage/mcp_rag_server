@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 from typing import List, Optional
 
 # Imports stricts depuis le fichier de base commun
-from code_chunker import (
+from chunker_code import (
     CodeChunk,
     _is_worth_chunking,
     _strip_file_header,
@@ -13,7 +11,7 @@ from code_chunker import (
     MAX_CHUNK_CHARS
 )
 
-logger = logging.getLogger("code_chunker.cpp")
+logger = logging.getLogger("chunker_code.cpp")
 
 
 class CppChunker:

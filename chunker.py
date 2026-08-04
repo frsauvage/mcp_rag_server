@@ -7,21 +7,19 @@ Ce module expose :
 
 Architecture modulaire :
   chunker.py (ce fichier)     <- Interface unifiée
-    |-- code_chunker.py       <- Chunking code (Python, C++)
-    |-- pdf_chunker.py        <- Chunking PDF
-    |-- md_chunker.py         <- Chunking Markdown / RST
-    |-- proto_chunker.py      <- Chunking Protocol Buffers
+    |-- chunker_code.py       <- Chunking code (Python, C++)
+    |-- chunker_pdf.py        <- Chunking PDF
+    |-- chunker_md.py         <- Chunking Markdown / RST
+    |-- chunker_proto.py      <- Chunking Protocol Buffers
 """
-from __future__ import annotations
-
 import logging
 from pathlib import Path
 from typing import List, Union
 
-from code_chunker import chunk_code, CODE_EXTENSIONS, CodeChunk
-from pdf_chunker import chunk_pdf, PDF_EXTENSIONS, DocChunk
-from md_chunker import chunk_markdown, MD_EXTENSIONS
-from proto_chunker import chunk_proto, PROTO_EXTENSIONS
+from chunker_code import chunk_code, CODE_EXTENSIONS, CodeChunk
+from chunker_pdf import chunk_pdf, PDF_EXTENSIONS, DocChunk
+from chunker_md import chunk_markdown, MD_EXTENSIONS
+from chunker_proto import chunk_proto, PROTO_EXTENSIONS
 
 logger = logging.getLogger("chunker")
 

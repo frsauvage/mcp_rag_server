@@ -4,7 +4,7 @@ from pathlib import Path
 # On s'assure que le dossier courant est dans le path de recherche Python
 sys.path.append(str(Path(__file__).parent))
 
-from code_chunker import chunk_code
+from chunker_code import chunk_code
 
 def main():
     # Définition des chemins

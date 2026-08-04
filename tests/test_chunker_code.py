@@ -1,9 +1,7 @@
-"""Tests unitaires pour code_chunker.py."""
-from __future__ import annotations
-
+"""Tests unitaires pour chunker_code.py."""
 import hashlib
 
-from code_chunker import (
+from chunker_code import (
     MIN_CODE_LINES,
     CodeChunk,
     _extract_lines,

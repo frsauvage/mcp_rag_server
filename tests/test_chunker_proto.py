@@ -1,9 +1,7 @@
-"""Tests unitaires pour proto_chunker.py (ProtoChunker)."""
-from __future__ import annotations
-
+"""Tests unitaires pour chunker_proto.py (ProtoChunker)."""
 from pathlib import Path
 
-from proto_chunker import ProtoChunker
+from chunker_proto import ProtoChunker
 
 
 def _write(tmp_path: Path, name: str, source: str) -> Path:
@@ -47,7 +45,7 @@ class TestProtoChunkerBasics:
         assert ProtoChunker().chunk(f, tmp_path) == []
 
     def test_returns_code_chunks(self, tmp_path):
-        from code_chunker import CodeChunk
+        from chunker_code import CodeChunk
         f = _write(tmp_path, "api.proto", SIMPLE_PROTO)
         chunks = ProtoChunker().chunk(f, tmp_path)
         assert all(isinstance(c, CodeChunk) for c in chunks)

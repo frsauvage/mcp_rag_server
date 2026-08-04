@@ -1,5 +1,5 @@
 """
-proto_chunker.py — Chunking syntaxique pour fichiers Protocol Buffers (.proto)
+chunker_proto.py — Chunking syntaxique pour fichiers Protocol Buffers (.proto)
 
 Stratégie :
   - 1 chunk par message (avec ses champs)
@@ -7,8 +7,6 @@ Stratégie :
   - 1 chunk par enum
   - Le package et les imports sont ajoutés en tête de chaque chunk
 """
-from __future__ import annotations
-
 import hashlib
 import logging
 import re
@@ -16,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
-logger = logging.getLogger("proto_chunker")
+logger = logging.getLogger("chunker_proto")
 
 MIN_CHUNK_LINES = 2
 
@@ -27,7 +25,7 @@ PROTO_EXTENSIONS = {".proto"}
 # Réutilise CodeChunk de chunker.py
 # ---------------------------------------------------------------------------
 
-from code_chunker import CodeChunk, file_hash
+from chunker_code import CodeChunk, file_hash
 
 
 # ---------------------------------------------------------------------------
