@@ -80,7 +80,7 @@ class Indexer:
 
     Usage depuis mcp_rag_server.py :
         indexer = Indexer(store)
-        report = await indexer.index_directory("/path/to/project", recursive=True)
+        report = await indexer.index_directory("/path/to/project")
     """
 
     def __init__(self, store: CodeStore):
@@ -89,11 +89,10 @@ class Indexer:
     async def index_directory(
         self,
         directory: str,
-        recursive: bool = True,
         force_reindex: bool = False,
     ) -> IndexReport:
         """
-        Indexe un répertoire.
+        Indexe un répertoire (scan récursif de tous les sous-répertoires).
 
         Si un fichier AGENT.md existe à la racine du répertoire, il est lu et
         soumis au LLM pour en extraire d'éventuelles exclusions de répertoires
@@ -102,7 +101,6 @@ class Indexer:
 
         Args:
             directory    : Répertoire à indexer
-            recursive    : Scanner les sous-répertoires
             force_reindex: Vider la base avant d'indexer (réindexation complète)
 
         Returns:
@@ -122,7 +120,7 @@ class Indexer:
         if agent_exclusions:
             logger.info(f"Exclusions RAG issues de AGENT.md : {sorted(agent_exclusions)}")
 
-        files = self._scan_files(path, recursive, agent_exclusions)
+        files = self._scan_files(path, agent_exclusions)
         logger.info(f"Scan : {len(files)} fichiers trouvés dans {path}")
 
         all_chunks: List[CodeChunk] = []
@@ -156,13 +154,11 @@ class Indexer:
     def _scan_files(
         self,
         dir_path: Path,
-        recursive: bool,
         extra_excluded_prefixes: frozenset[str] = frozenset(),
     ) -> List[Path]:
-        """Retourne les fichiers de code supportés dans le répertoire."""
-        pattern = "**/*" if recursive else "*"
+        """Retourne les fichiers de code supportés dans le répertoire (scan récursif)."""
         return [
-            p for p in dir_path.glob(pattern)
+            p for p in dir_path.glob("**/*")
             if p.is_file()
             and p.suffix.lower() in ALL_EXTENSIONS
             and p.name.lower() not in EXCLUDED_FILENAMES

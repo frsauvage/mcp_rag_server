@@ -257,7 +257,6 @@ async def handle_call_tool(name: str, arguments: dict | None):
         try:
             report = await indexer.index_directory(
                 directory=directory,
-                recursive=True,
                 force_reindex=force,
             )
 
@@ -374,7 +373,7 @@ if __name__ == "__main__":
 
         async def run_index():
             logger.info(f"Indexation de {directory}...")
-            report = await indexer.index_directory(directory=directory, recursive=True)
+            report = await indexer.index_directory(directory=directory)
             logger.info(report.summary())
             stats = store.stats()
             logger.info(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")

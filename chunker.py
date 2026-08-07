@@ -38,9 +38,9 @@ CODE_DOMAIN_EXTENSIONS = CODE_EXTENSIONS | PROTO_EXTENSIONS
 TEXT_DOMAIN_EXTENSIONS = PDF_EXTENSIONS | MD_EXTENSIONS
 
 
-def domain_for_path(relative_path: str) -> str:
-    """"code" pour Python/C++/Proto, "text" pour PDF/Markdown."""
-    return "code" if Path(relative_path).suffix.lower() in CODE_DOMAIN_EXTENSIONS else "text"
+def is_code_from_file_extension(relative_path: str) -> bool:
+    """True pour Python/C++/Proto, False pour PDF/Markdown."""
+    return Path(relative_path).suffix.lower() in CODE_DOMAIN_EXTENSIONS
 
 
 # ---------------------------------------------------------------------------

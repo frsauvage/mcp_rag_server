@@ -23,7 +23,7 @@ from chromadb.config import Settings
 from mcp_rag_client_llm import embed_client
 
 from chunker_code import CodeChunk
-from chunker import domain_for_path
+from chunker import is_code_from_file_extension
 from embedder import embed_texts, embed_query
 
 logger = logging.getLogger("store")
@@ -53,7 +53,7 @@ class CodeStore:
     dimension de vecteur fixe (HNSW) — deux modèles d'embedding aux dimensions
     différentes ne peuvent pas cohabiter dans la même collection. Le domaine
     (code vs texte) est déterminé par l'extension du fichier via
-    chunker.domain_for_path().
+    chunker.is_code_from_file_extension().
 
     Exemple d'utilisation (depuis indexer.py ou retriever.py) :
         store = CodeStore(persist_dir="./chroma_db")
@@ -213,7 +213,7 @@ class CodeStore:
         for file_path, file_chunks in by_file.items():
             # Le domaine (code vs texte) est le même pour tous les chunks d'un
             # fichier donné : il ne dépend que de son extension.
-            domain = domain_for_path(file_chunks[0].relative_path)
+            domain = "code" if is_code_from_file_extension(file_chunks[0].relative_path) else "text"
             collection = self._collection_for(domain)
 
             # Embedder tous les chunks du fichier
@@ -281,7 +281,6 @@ class CodeStore:
         """
         domains = self._resolve_domains(language_filter)
 
-        # Construction des filtres de métadonnées communs
         where_clause = {}
         if language_filter:
             where_clause["language"] = language_filter
@@ -296,85 +295,74 @@ class CodeStore:
             if collection.count() == 0:
                 continue
 
-            # ------------------------------------------------------------------
-            # ETAPE 1 : Recherche lexicale (Mots exacts)
-            # ------------------------------------------------------------------
-            try:
-                # ChromaDB permet de chercher des sous-chaînes dans les documents
-                lexical_results = collection.get(
-                    where_document={"$contains": question},
-                    where=where_clause if where_clause else None,
-                    include=["documents", "metadatas"],
-                    limit=MAX_RERANK
-                )
+            exact_chunks.extend(self._lexical_search(collection, question, where_clause))
+            semantic_chunks.extend(self._semantic_search(collection, question, domain, where_clause))
 
-                if lexical_results and lexical_results["ids"]:
-                    for doc, meta in zip(lexical_results["documents"], lexical_results["metadatas"]):
-                        exact_chunks.append({
-                            "content": doc,
-                            "metadata": meta,
-                            "distance": 0.0,  # Score parfait (0.0 = distance minimale) car mot exact
-                            "lexical_match": True # Flag pour le tri personnalisé
-                        })
-            except Exception as e:
-                logger.warning(f"Recherche lexicale échouée (domaine={domain}): {e}")
+        combined_chunks = self._merge_dedup(exact_chunks, semantic_chunks)
+        final_chunks = self._rerank_hybrid(combined_chunks)
+        return final_chunks[:top_k]
 
-            # ------------------------------------------------------------------
-            # ETAPE 2 : Recherche sémantique (Vectorielle)
-            # ------------------------------------------------------------------
-            query_embedding = embed_query(question, domain=domain)
+    def _lexical_search(self, collection, question: str, where_clause: dict) -> List[dict]:
+        """Recherche par mots exacts (sous-chaîne) dans une collection."""
+        try:
+            # ChromaDB permet de chercher des sous-chaînes dans les documents
+            results = collection.get(
+                where_document={"$contains": question},
+                where=where_clause if where_clause else None,
+                include=["documents", "metadatas"],
+                limit=MAX_RERANK
+            )
+        except Exception as e:
+            logger.warning(f"Recherche lexicale échouée : {e}")
+            return []
 
-            if query_embedding is not None:
-                fetch_size = min(MAX_RERANK, collection.count())
-                kwargs = dict(
-                    query_embeddings=[query_embedding],
-                    n_results=fetch_size,
-                    include=["documents", "metadatas", "distances"],
-                )
-                if where_clause:
-                    kwargs["where"] = where_clause
+        if not results or not results["ids"]:
+            return []
+        return [
+            {
+                "content": doc,
+                "metadata": meta,
+                "distance": 0.0,  # Score parfait (0.0 = distance minimale) car mot exact
+                "lexical_match": True,  # Flag pour le tri personnalisé
+            }
+            for doc, meta in zip(results["documents"], results["metadatas"])
+        ]
 
-                results = collection.query(**kwargs)
+    def _semantic_search(self, collection, question: str, domain: str, where_clause: dict) -> List[dict]:
+        """Recherche vectorielle dans une collection, embedding calculé pour le domaine donné."""
+        query_embedding = embed_query(question, domain=domain)
+        if query_embedding is None:
+            return []
 
-                if results and results["documents"]:
-                    for doc, meta, dist in zip(
-                        results["documents"][0],
-                        results["metadatas"][0],
-                        results["distances"][0],
-                    ):
-                        semantic_chunks.append({
-                            "content": doc,
-                            "metadata": meta,
-                            "distance": dist,
-                            "lexical_match": False
-                        })
+        kwargs = dict(
+            query_embeddings=[query_embedding],
+            n_results=min(MAX_RERANK, collection.count()),
+            include=["documents", "metadatas", "distances"],
+        )
+        if where_clause:
+            kwargs["where"] = where_clause
 
-        # ------------------------------------------------------------------
-        # ETAPE 3 : Fusion et dédoublonnement
-        # ------------------------------------------------------------------
-        # On utilise une clé unique pour éviter les doublons (ex: le contenu ou un ID si disponible)
+        results = collection.query(**kwargs)
+        if not results or not results["documents"]:
+            return []
+        return [
+            {"content": doc, "metadata": meta, "distance": dist, "lexical_match": False}
+            for doc, meta, dist in zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0],
+            )
+        ]
+
+    def _merge_dedup(self, exact_chunks: List[dict], semantic_chunks: List[dict]) -> List[dict]:
+        """Fusionne lexical + sémantique, priorité au lexical, dédoublonné par contenu."""
         seen_contents = set()
         combined_chunks = []
-
-        # On insère d'abord les correspondances exactes
-        for chunk in exact_chunks:
+        for chunk in exact_chunks + semantic_chunks:
             if chunk["content"] not in seen_contents:
                 seen_contents.add(chunk["content"])
                 combined_chunks.append(chunk)
-
-        # On complète avec le sémantique
-        for chunk in semantic_chunks:
-            if chunk["content"] not in seen_contents:
-                seen_contents.add(chunk["content"])
-                combined_chunks.append(chunk)
-
-        # ------------------------------------------------------------------
-        # ETAPE 4 : Reranking (Priorité Lexical ET Code)
-        # ------------------------------------------------------------------
-        final_chunks = self._rerank_hybrid(combined_chunks)
-
-        # Retourne le top_k final
-        return final_chunks[:top_k]
+        return combined_chunks
 
     def _rerank_hybrid(self, chunks: List[dict]) -> List[dict]:
         """
@@ -392,7 +380,7 @@ class CodeStore:
         semantic_other = []
 
         for chunk in chunks:
-            is_code = domain_for_path(chunk["metadata"].get("relative_path", "")) == "code"
+            is_code = is_code_from_file_extension(chunk["metadata"].get("relative_path", ""))
             is_lexical = chunk.get("lexical_match", False)
 
             if is_lexical and is_code:

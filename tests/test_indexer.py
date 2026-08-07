@@ -65,7 +65,7 @@ class TestScanFiles:
         (tmp_path / "main.py").write_text("x = 1\n" * 10)
         (tmp_path / "utils.py").write_text("def f(): pass\n" * 10)
         indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=False)
+        files = indexer._scan_files(tmp_path)
         names = {f.name for f in files}
         assert "main.py" in names
         assert "utils.py" in names
@@ -74,7 +74,7 @@ class TestScanFiles:
         (tmp_path / "data.csv").write_text("a,b,c")
         (tmp_path / "config.yaml").write_text("key: value")
         indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=False)
+        files = indexer._scan_files(tmp_path)
         names = {f.name for f in files}
         assert "data.csv" not in names
         assert "config.yaml" not in names
@@ -83,7 +83,7 @@ class TestScanFiles:
         for name in EXCLUDED_FILENAMES:
             (tmp_path / name).write_text("x = 1\n" * 10)
         indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=False)
+        files = indexer._scan_files(tmp_path)
         names = {f.name for f in files}
         for excl in EXCLUDED_FILENAMES:
             assert excl not in names
@@ -94,7 +94,7 @@ class TestScanFiles:
             subdir.mkdir()
             (subdir / "code.py").write_text("x = 1\n" * 10)
         indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=True)
+        files = indexer._scan_files(tmp_path)
         for f in files:
             assert f.relative_to(tmp_path).parts[0] not in EXCLUDED_ROOT_DIRS
 
@@ -106,28 +106,17 @@ class TestScanFiles:
             (subdir / "code.py").write_text("x = 1\n" * 10)
         (tmp_path / "src" / "good.py").write_text("x = 1\n" * 10)
         indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=True)
+        files = indexer._scan_files(tmp_path)
         names = {f.name for f in files}
         assert "code.py" not in names
         assert "good.py" in names
 
-    def test_non_recursive_excludes_subdirs(self, tmp_path):
-        subdir = tmp_path / "sub"
-        subdir.mkdir()
-        (subdir / "nested.py").write_text("x = 1\n" * 10)
-        (tmp_path / "root.py").write_text("x = 1\n" * 10)
-        indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=False)
-        names = {f.name for f in files}
-        assert "root.py" in names
-        assert "nested.py" not in names
-
-    def test_recursive_includes_subdirs(self, tmp_path):
+    def test_includes_subdirs(self, tmp_path):
         subdir = tmp_path / "src"
         subdir.mkdir()
         (subdir / "nested.py").write_text("x = 1\n" * 10)
         indexer = Indexer(self._make_store())
-        files = indexer._scan_files(tmp_path, recursive=True)
+        files = indexer._scan_files(tmp_path)
         names = {f.name for f in files}
         assert "nested.py" in names
 
