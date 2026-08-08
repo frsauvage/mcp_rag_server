@@ -194,9 +194,8 @@ async def _llm_call(prompt: str) -> str:
 # Definition des outils
 # ---------------------------------------------------------------------------
 
-@server.list_tools()
-async def handle_list_tools() -> list[types.Tool]:
-    return [
+async def handle_list_tools(ctx, params) -> types.ListToolsResult:
+    return types.ListToolsResult(tools=[
         types.Tool(
             name="clean",
             description="Nettoie complètement la base vectorielle (reset).",
@@ -230,24 +229,23 @@ async def handle_list_tools() -> list[types.Tool]:
                 "required": ["question"]
             }
         ),
-    ]
+    ])
 
 # ---------------------------------------------------------------------------
 # Gestionnaire des appels d'outils
 # ---------------------------------------------------------------------------
-@server.call_tool()
-async def handle_call_tool(name: str, arguments: dict | None):
-
-    args = arguments or {}
+async def handle_call_tool(ctx, params: types.CallToolRequestParams) -> types.CallToolResult:
+    name = params.name
+    args = params.arguments or {}
 
     # ---------------- CLEAN
     if name == "clean":
         store.clear()
 
-        return [types.TextContent(
+        return types.CallToolResult(content=[types.TextContent(
             type="text",
             text="✅ Base vectorielle nettoyée."
-        )]
+        )])
 
     # ---------------- INDEX
     elif name == "index":
@@ -262,7 +260,7 @@ async def handle_call_tool(name: str, arguments: dict | None):
 
             stats = store.stats()
 
-            return [types.TextContent(
+            return types.CallToolResult(content=[types.TextContent(
                 type="text",
                 text=(
                     f"✅ Indexation terminée pour {directory}\n\n"
@@ -270,13 +268,13 @@ async def handle_call_tool(name: str, arguments: dict | None):
                     + f"\nTotal: {stats['total_chunks']} chunks / "
                       f"{stats['total_files_indexed']} fichiers"
                 )
-            )]
+            )])
 
         except Exception as e:
-            return [types.TextContent(
+            return types.CallToolResult(content=[types.TextContent(
                 type="text",
                 text=f"❌ Erreur index: {e}"
-            )]
+            )])
 
     # ---------------- QUERY
     elif name == "query":
@@ -284,10 +282,10 @@ async def handle_call_tool(name: str, arguments: dict | None):
 
         stats = store.stats()
         if stats["total_chunks"] == 0:
-            return [types.TextContent(
+            return types.CallToolResult(content=[types.TextContent(
                 type="text",
                 text="⚠️ La base est vide. Lance d'abord un index."
-            )]
+            )])
 
         try:
             prompt, nb_chunks = await asyncio.to_thread(
@@ -299,26 +297,29 @@ async def handle_call_tool(name: str, arguments: dict | None):
             )
 
             if nb_chunks == 0:
-                return [types.TextContent(
+                return types.CallToolResult(content=[types.TextContent(
                     type="text",
                     text="Aucun résultat pertinent trouvé."
-                )]
+                )])
 
             answer = await _llm_call(prompt)
 
-            return [types.TextContent(
+            return types.CallToolResult(content=[types.TextContent(
                 type="text",
                 text=answer
-            )]
+            )])
 
         except Exception as e:
-            return [types.TextContent(
+            return types.CallToolResult(content=[types.TextContent(
                 type="text",
                 text=f"❌ Erreur query: {e}"
-            )]
+            )])
 
     else:
         raise ValueError(f"Outil inconnu : {name}")
+
+server.add_request_handler("tools/list", types.PaginatedRequestParams, handle_list_tools)
+server.add_request_handler("tools/call", types.CallToolRequestParams, handle_call_tool)
 
 # ---------------------------------------------------------------------------
 # Point d'entree

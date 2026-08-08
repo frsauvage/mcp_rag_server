@@ -250,19 +250,6 @@ class CodeStore:
     # Retrieval bas niveau (utilisé par retriever.py)
     # ------------------------------------------------------------------
 
-    # Langues connues par domaine, pour restreindre la recherche à une seule
-    # collection quand language_filter cible sans ambiguïté un domaine.
-    _CODE_LANGUAGES = {"python", "cpp", "proto"}
-    _TEXT_LANGUAGES = {"pdf", "markdown"}
-
-    def _resolve_domains(self, language_filter: Optional[str]) -> List[str]:
-        """Détermine quelle(s) collection(s) interroger selon language_filter."""
-        if language_filter in self._CODE_LANGUAGES:
-            return ["code"]
-        if language_filter in self._TEXT_LANGUAGES:
-            return ["text"]
-        return ["code", "text"]
-
     def similarity_search(
         self,
         question: str,
@@ -271,16 +258,17 @@ class CodeStore:
         chapter_filter: Optional[str] = None,
     ) -> List[dict]:
         """
-        Recherche hybride, sur une ou les deux collections (code/texte) selon
-        language_filter :
+        Recherche hybride sur les deux collections (code/texte) :
         1. Recherche par mots exacts (lexicale)
         2. Recherche sémantique (vectorielle, embedding de la question calculé
            séparément par domaine — modèle code vs modèle texte)
         3. Fusion avec priorité absolue aux correspondances lexicales exactes,
            puis application du reranking par type de fichier.
-        """
-        domains = self._resolve_domains(language_filter)
 
+        language_filter, si fourni, est appliqué comme filtre de métadonnées
+        (where_clause) : les collections dont aucun chunk ne correspond
+        renverront simplement un résultat vide.
+        """
         where_clause = {}
         if language_filter:
             where_clause["language"] = language_filter
@@ -290,7 +278,7 @@ class CodeStore:
         exact_chunks: List[dict] = []
         semantic_chunks: List[dict] = []
 
-        for domain in domains:
+        for domain in ("code", "text"):
             collection = self._collection_for(domain)
             if collection.count() == 0:
                 continue
