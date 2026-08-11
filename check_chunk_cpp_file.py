@@ -4,7 +4,7 @@ from pathlib import Path
 # On s'assure que le dossier courant est dans le path de recherche Python
 sys.path.append(str(Path(__file__).parent))
 
-from chunker_code import chunk_code
+from chunker_cpp import chunk_cpp
 
 def main():
     # Définition des chemins
@@ -18,7 +18,7 @@ def main():
     print(f"--- Analyse de {cpp_file.name} ---")
     
     # Appel du chunker C++ via le point d'entrée
-    chunks = chunk_code(path=cpp_file, root=root_dir, ext=".cpp")
+    chunks = chunk_cpp(path=cpp_file, root=root_dir)
     
     print(f"Nombre de chunks extraits : {len(chunks)}\n")
     

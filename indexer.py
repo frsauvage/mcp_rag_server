@@ -157,15 +157,19 @@ class Indexer:
         extra_excluded_prefixes: frozenset[str] = frozenset(),
     ) -> List[Path]:
         """Retourne les fichiers de code supportés dans le répertoire (scan récursif)."""
-        return [
-            p for p in dir_path.glob("**/*")
-            if p.is_file()
-            and p.suffix.lower() in ALL_EXTENSIONS
-            and p.name.lower() not in EXCLUDED_FILENAMES
-            and not any(part.lower() in EXCLUDED_DIRS for part in p.relative_to(dir_path).parts)
-            and p.relative_to(dir_path).parts[0] not in EXCLUDED_ROOT_DIRS
-            and not _is_under_excluded_prefix(p.relative_to(dir_path).parent, extra_excluded_prefixes)
-        ]
+        result = []
+        for p in dir_path.glob("**/*"):
+            if not p.is_file() or p.suffix.lower() not in ALL_EXTENSIONS or p.name.lower() in EXCLUDED_FILENAMES:
+                continue
+            rel = p.relative_to(dir_path)
+            if (
+                any(part.lower() in EXCLUDED_DIRS for part in rel.parts)
+                or rel.parts[0] in EXCLUDED_ROOT_DIRS
+                or _is_under_excluded_prefix(rel.parent, extra_excluded_prefixes)
+            ):
+                continue
+            result.append(p)
+        return result
 
     async def _get_agent_md_exclusions(self, dir_path: Path) -> frozenset[str]:
         """

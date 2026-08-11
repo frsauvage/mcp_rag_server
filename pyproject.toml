@@ -10,32 +10,32 @@ requires-python = ">=3.11"
 
 dependencies = [
     # MCP
-    "mcp>=1.0.0",
+    "mcp",
 
     # LangChain + Mistral
-    "langchain-openai>=1.2.2",
+    "langchain-openai",
     
     # ChromaDB (base vectorielle avec persistance SQLite)
-    "chromadb>=1.5.9",
+    "chromadb",
 
     # Chunking C++
-    "tree-sitter>=0.23",
-    "tree-sitter-cpp>=0.23",
-    "pymupdf>=1.24",
+    "tree-sitter",
+    "tree-sitter-cpp",
+    "pymupdf",
 
     # Utilitaires
-    "python-dotenv>=1.0",
+    "python-dotenv",
 
-    "pydantic>=2.11.0",
-    "openai>=2.40.0",
-    "pyyaml>=6.0",
+    "pydantic",
+    "openai",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=9.0.3",
-    "pytest-asyncio>=1.4.0",
-    "ruff>=0.4",
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
     "jupyter",
 ]
 

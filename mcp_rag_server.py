@@ -18,11 +18,11 @@ Architecture interne :
 """
 import argparse
 import asyncio
+import itertools
 import logging
 import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
+sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+sys.stderr.reconfigure(encoding='utf-8', line_buffering=True)
 import os
 from pathlib import Path
 
@@ -34,7 +34,6 @@ import mcp.server.stdio
 import mcp.types as types
 from rich.console import Console
 from rich.markdown import Markdown
-from rich.panel import Panel
 
 from store import CodeStore
 from indexer import Indexer
@@ -60,10 +59,8 @@ file_handler = logging.FileHandler(LOG_DIR / "mcp_rag_server.log", encoding='utf
 file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(_log_formatter)
 
-# stdout : reçoit uniquement INFO et au-dessus
-stream_handler = logging.StreamHandler(
-    io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
-)
+# stdout : reçoit uniquement INFO et au-dessus (déjà reconfiguré en UTF-8 plus haut)
+stream_handler = logging.StreamHandler(sys.stdout)
 stream_handler.setLevel(logging.INFO)
 stream_handler.setFormatter(_log_formatter)
 
@@ -120,23 +117,6 @@ args = _build_arg_parser().parse_args()
 # Utilitaires
 # ---------------------------------------------------------------------------
 
-def _print_log_errors(log_file: Path):
-    """Affiche uniquement les lignes ERROR du fichier de log."""
-    if not log_file.exists():
-        return
-    try:
-        errors = []
-        with open(log_file, "r", encoding="utf-8") as f:
-            for line in f:
-                if "ERROR" in line or "error" in line.lower():
-                    errors.append(line.strip())
-        if errors:
-            console.print("\n⚠️  Erreurs détectées dans les logs :")
-            for error in errors[-10:]:
-                console.print(f"  {error}", style="red")
-    except Exception as e:
-        pass
-
 def _paginate_output(text: str, lines_per_page: int = 40) -> None:
     """Affiche le texte par pages si plus de lines_per_page lignes."""
     lines = text.split('\n')
@@ -145,23 +125,17 @@ def _paginate_output(text: str, lines_per_page: int = 40) -> None:
         console.print(Markdown(text))
         return
 
-    page = 0
-    while page * lines_per_page < len(lines):
-        start = page * lines_per_page
-        end = min(start + lines_per_page, len(lines))
-        page_text = '\n'.join(lines[start:end])
+    pages = list(itertools.batched(lines, lines_per_page))
+    for page_num, page_lines in enumerate(pages, start=1):
+        console.print(Markdown('\n'.join(page_lines)))
 
-        console.print(Markdown(page_text))
-
-        if end < len(lines):
-            progress = f"[dim]Page {page + 1}/{(len(lines) + lines_per_page - 1) // lines_per_page} — Appuyez sur Entrée pour continuer...[/dim]"
+        if page_num < len(pages):
+            progress = f"[dim]Page {page_num}/{len(pages)} — Appuyez sur Entrée pour continuer...[/dim]"
             console.print(progress)
             try:
                 input()
             except EOFError:
                 break
-
-        page += 1
 
 # ---------------------------------------------------------------------------
 # Initialisation des composants
@@ -181,14 +155,10 @@ logger.info("MCP Server initialized")
 
 async def _llm_call(prompt: str) -> str:
     if not llm_client:
-        return "Erreur : llm_client not configured."
-    try:
-        message = HumanMessage(content=prompt)
-        response = await asyncio.to_thread(llm_client.invoke, [message])
-        return response.content
-    except Exception as e:
-        logger.error(f"Erreur LLM : {e}")
-        return f"Erreur LLM : {e}"
+        raise RuntimeError("llm_client non configuré.")
+    message = HumanMessage(content=prompt)
+    response = await asyncio.to_thread(llm_client.invoke, [message])
+    return response.content
 
 # ---------------------------------------------------------------------------
 # Definition des outils
@@ -379,13 +349,10 @@ if __name__ == "__main__":
             stats = store.stats()
             logger.info(f"Total en base : {stats['total_chunks']} chunks / {stats['total_files_indexed']} fichiers")
             logger.info(f"Storage : {stats['persist_dir']}")
-
-            # Afficher les erreurs du log
-            _print_log_errors(LOG_DIR / "mcp_rag_server.log")
         asyncio.run(run_index())
 
     if args.query:
-        async def test_query():
+        async def query():
             import time
 
             stats = store.stats()
@@ -422,7 +389,12 @@ if __name__ == "__main__":
                     history_text += "---\n\n"
 
                 t1 = time.perf_counter()
-                answer = await _llm_call(history_text + prompt)
+                try:
+                    answer = await _llm_call(history_text + prompt)
+                except Exception as e:
+                    logger.error(f"Erreur LLM : {e}")
+                    console.print(f"[red]❌ Erreur LLM : {e}[/red]")
+                    continue
                 t_llm = time.perf_counter() - t1
 
                 history.append({"question": question, "answer": answer})
@@ -432,7 +404,7 @@ if __name__ == "__main__":
                 console.print(f"[cyan]Retrieval[/cyan]: {t_retrieval:.2f}s | [cyan]LLM[/cyan]: {t_llm:.2f}s | [bold]Total[/bold]: {t_retrieval + t_llm:.2f}s")
                 console.print(f"[dim]Historique: {len(history)} tour(s)[/dim]")
 
-        asyncio.run(test_query())
+        asyncio.run(query())
 
     if not any([args.debug_chunk, args.clean, args.index, args.query]):
         # Aucune commande -> mode serveur MCP normal

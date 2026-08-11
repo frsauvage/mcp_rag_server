@@ -8,6 +8,7 @@ from chunker_code import (
     _is_worth_chunking,
     _strip_file_header,
     file_hash,
+    is_comment,
 )
 
 # ── CodeChunk ────────────────────────────────────────────────────────────────
@@ -116,6 +117,31 @@ class TestExtractLines:
 
     def test_last_line(self):
         assert _extract_lines(self.SOURCE, 5, 5) == "line5"
+
+
+# ── is_comment ───────────────────────────────────────────────────────────────
+
+class TestIsComment:
+    def test_python_hash(self):
+        assert is_comment("# comment", "python")
+
+    def test_python_code(self):
+        assert not is_comment("x = 1", "python")
+
+    def test_cpp_double_slash(self):
+        assert is_comment("// comment", "cpp")
+
+    def test_cpp_block_start(self):
+        assert is_comment("/* comment", "cpp")
+
+    def test_cpp_block_continuation(self):
+        assert is_comment("* comment", "cpp")
+
+    def test_cpp_code(self):
+        assert not is_comment("int x = 1;", "cpp")
+
+    def test_strips_leading_whitespace(self):
+        assert is_comment("    # comment", "python")
 
 
 # ── _is_worth_chunking ────────────────────────────────────────────────────────

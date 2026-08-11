@@ -16,7 +16,9 @@ import logging
 from pathlib import Path
 from typing import List, Union
 
-from chunker_code import chunk_code, CODE_EXTENSIONS, CodeChunk
+from chunker_code import CODE_EXTENSIONS, PYTHON_EXTENSIONS, CPP_EXTENSIONS, CodeChunk
+from chunker_python import chunk_python
+from chunker_cpp import chunk_cpp
 from chunker_pdf import chunk_pdf, PDF_EXTENSIONS, DocChunk
 from chunker_md import chunk_markdown, MD_EXTENSIONS
 from chunker_proto import chunk_proto, PROTO_EXTENSIONS
@@ -73,8 +75,10 @@ def chunk_file(
             return _clean(chunk_markdown(path, root))
         elif ext in PROTO_EXTENSIONS:
             return _clean(chunk_proto(path, root))
-        elif ext in CODE_EXTENSIONS:
-            return _clean(chunk_code(path, root, ext))
+        elif ext in PYTHON_EXTENSIONS:
+            return _clean(chunk_python(path, root))
+        elif ext in CPP_EXTENSIONS:
+            return _clean(chunk_cpp(path, root))
         else:
             return []
 

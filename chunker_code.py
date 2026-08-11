@@ -6,7 +6,9 @@ from typing import List
 
 logger = logging.getLogger("chunker_code")
 
-CODE_EXTENSIONS = {".py", ".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"}
+PYTHON_EXTENSIONS = {".py"}
+CPP_EXTENSIONS = {".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"}
+CODE_EXTENSIONS = PYTHON_EXTENSIONS | CPP_EXTENSIONS
 
 MIN_CHUNK_LINES = 3
 MAX_CHUNK_CHARS = 1700   # Limite corps de chunk (header ajouté après)
@@ -64,16 +66,20 @@ def _extract_lines(source: str, start: int, end: int) -> str:
     return "\n".join(source.splitlines()[start - 1: end])
 
 
+def is_comment(line: str, language: str) -> bool:
+    """True si la ligne est un commentaire (Python: '#' ; C++: '//', '*', '/*')."""
+    stripped = line.strip()
+    if language == "cpp":
+        return stripped.startswith("//") or stripped.startswith("*") or stripped.startswith("/*")
+    return stripped.startswith("#")
+
+
 def _is_worth_chunking(source: str, language: str) -> bool:
     lines = source.splitlines()
     nb_lines = len(lines)
     if nb_lines < MIN_CODE_LINES or nb_lines > MAX_CODE_LINES:
         return False
-    if language == "cpp":
-        comment_lines = [l for l in lines if l.strip().startswith("//") or l.strip().startswith("*") or l.strip().startswith("/*")]
-    else:
-        comment_lines = [l for l in lines if l.strip().startswith("#")]
-    code_lines = [l for l in lines if l.strip() and l not in comment_lines]
+    code_lines = [l for l in lines if l.strip() and not is_comment(l, language)]
     return len(code_lines) / nb_lines > 0.1
 
 
@@ -97,14 +103,3 @@ def _strip_file_header(source: str, language: str) -> str:
             if stripped and not stripped.startswith("#"):
                 break
     return "".join(lines[i:])
-
-
-def chunk_code(path: Path, root: Path, ext: str) -> List[CodeChunk]:
-    """Point d'entrée principal pour le découpage de fichiers de code."""
-    if ext == ".py":
-        from chunker_python import chunk_python
-        return chunk_python(path, root)
-    elif ext in {".cpp", ".cc", ".cxx", ".c", ".h", ".hpp", ".hxx"}:
-        from chunker_cpp import chunk_cpp
-        return chunk_cpp(path, root)
-    return []

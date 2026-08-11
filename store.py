@@ -66,52 +66,11 @@ class CodeStore:
     HASH_COLLECTION_NAME = "file_hashes"
 
     def __init__(self, persist_dir: str):
-        import shutil
         self.persist_dir = Path(persist_dir)
         self.persist_dir.mkdir(parents=True, exist_ok=True)
 
-        try:
-            self._client = chromadb.PersistentClient(
-                path=str(self.persist_dir),
-                settings=Settings(anonymized_telemetry=False),
-                tenant="default_tenant",
-                database="default_database",
-            )
-        except (chromadb.errors.InternalError, chromadb.errors.NotFoundError) as e:
-            if "malformed" in str(e).lower() or "not found" in str(e).lower():
-                logger.warning("Base ChromaDB corrompue ou tenant introuvable — suppression et recreation automatique.")
-                shutil.rmtree(self.persist_dir)
-                self.persist_dir.mkdir(parents=True, exist_ok=True)
-                self._client = chromadb.PersistentClient(
-                    path=str(self.persist_dir),
-                    settings=Settings(anonymized_telemetry=False),
-                    tenant="default_tenant",
-                    database="default_database",
-                )
-            else:
-                raise
-
-        # Collection code : embeddings + métadonnées (Python/C++/Proto)
-        # embedding_function=None : on fournit nos propres vecteurs via gpt-embed.
-        # Sans ça, ChromaDB tente de télécharger un modèle HuggingFace au démarrage.
-        self._collection = self._client.get_or_create_collection(
-            name=self.COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=None,
-        )
-
-        # Collection texte : embeddings + métadonnées (PDF/Markdown), modèle distinct
-        self._doc_collection = self._client.get_or_create_collection(
-            name=self.DOC_COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=None,
-        )
-
-        # Collection secondaire : hashes de fichiers (pas d'embedding du tout)
-        self._hash_collection = self._client.get_or_create_collection(
-            name=self.HASH_COLLECTION_NAME,
-            embedding_function=None,
-        )
+        self._client = self._connect()
+        self._init_collections()
 
         # Remplacer par :
         self._embedder = embed_client
@@ -121,6 +80,47 @@ class CodeStore:
             f"{self._doc_collection.count()} chunks doc, "
             f"{self._hash_collection.count()} fichiers indexés "
             f"(persist: {self.persist_dir})"
+        )
+
+    def _connect(self):
+        """Ouvre le client ChromaDB, avec recréation automatique si la base est corrompue."""
+        import shutil
+
+        def _new_client():
+            return chromadb.PersistentClient(
+                path=str(self.persist_dir),
+                settings=Settings(anonymized_telemetry=False),
+                tenant="default_tenant",
+                database="default_database",
+            )
+
+        try:
+            return _new_client()
+        except (chromadb.errors.InternalError, chromadb.errors.NotFoundError) as e:
+            if "malformed" not in str(e).lower() and "not found" not in str(e).lower():
+                raise
+            logger.warning("Base ChromaDB corrompue ou tenant introuvable — suppression et recreation automatique.")
+            shutil.rmtree(self.persist_dir)
+            self.persist_dir.mkdir(parents=True, exist_ok=True)
+            return _new_client()
+
+    def _init_collections(self):
+        """(Re)crée les 3 collections ChromaDB (code, texte, hashes de fichiers)."""
+        # embedding_function=None : on fournit nos propres vecteurs via gpt-embed.
+        # Sans ça, ChromaDB tente de télécharger un modèle HuggingFace au démarrage.
+        self._collection = self._client.get_or_create_collection(
+            name=self.COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=None,
+        )
+        self._doc_collection = self._client.get_or_create_collection(
+            name=self.DOC_COLLECTION_NAME,
+            metadata={"hnsw:space": "cosine"},
+            embedding_function=None,
+        )
+        self._hash_collection = self._client.get_or_create_collection(
+            name=self.HASH_COLLECTION_NAME,
+            embedding_function=None,
         )
 
     def _collection_for(self, domain: str):
@@ -432,20 +432,7 @@ class CodeStore:
             except Exception:
                 pass  # Collection might not exist
 
-        self._collection = self._client.get_or_create_collection(
-            name=self.COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=None,
-        )
-        self._doc_collection = self._client.get_or_create_collection(
-            name=self.DOC_COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
-            embedding_function=None,
-        )
-        self._hash_collection = self._client.get_or_create_collection(
-            name=self.HASH_COLLECTION_NAME,
-            embedding_function=None,
-        )
+        self._init_collections()
         logger.info("Vectorial base cleaned")
 
 
