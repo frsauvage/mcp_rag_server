@@ -23,9 +23,10 @@ PATH_CA = os.getenv("PATH_CA")
 WEB_CRAWL_USER = os.getenv("WEB_CRAWL_USER")
 WEB_CRAWL_LOGIN_URL = os.getenv("WEB_CRAWL_LOGIN_URL")
 WEB_CRAWL_JSESSIONID = os.getenv("WEB_CRAWL_JSESSIONID")
-WEB_CRAWL_WAM_COOKIE = os.getenv("WEB_CRAWL_WAM_COOKIE")
-WEB_CRAWL_OXS_COOKIE = os.getenv("WEB_CRAWL_OXS_COOKIE")
+WEB_CRAWL_WAM_COOKIE_NAME = os.getenv("WEB_CRAWL_WAM_COOKIE_NAME")
+WEB_CRAWL_WAM_COOKIE_KEY = os.getenv("WEB_CRAWL_WAM_COOKIE_KEY")
 WEB_CRAWL_DOMAIN = os.getenv("WEB_CRAWL_DOMAIN")
+WEB_CRAWL_LOGIN_URL = os.getenv("WEB_CRAWL_LOGIN_URL")
 
 AUTH_WALL_MARKERS = (
     "user couldn't be identified",
@@ -46,12 +47,9 @@ def main():
         session.verify = PATH_CA
 
     session.cookies.set("JSESSIONID", WEB_CRAWL_JSESSIONID, domain=WEB_CRAWL_DOMAIN)
-    session.cookies.set("OXS-WAM-PROD.P03", WEB_CRAWL_OXS_COOKIE, domain=WEB_CRAWL_DOMAIN)
+    session.cookies.set(WEB_CRAWL_WAM_COOKIE_NAME, WEB_CRAWL_WAM_COOKIE_KEY, domain=WEB_CRAWL_DOMAIN)
 
-    entry_url = sys.argv[1] if len(sys.argv) > 1 else input("URL du point d'entrée à tester : ").strip()
-    if not entry_url:
-        print("❌ Aucune URL fournie")
-        sys.exit(1)
+    entry_url = WEB_CRAWL_LOGIN_URL
 
     resp_entry = session.get(entry_url, timeout=10)
 
@@ -60,8 +58,7 @@ def main():
     print(f"  Taille contenu : {len(resp_entry.text)} caractères")
     print(resp_entry.text[:5000])
 
-    assert "<title>II.A.5 Module Ethernet - Framework MTG - LAS / SLB - Global Site</title>" in resp_entry.text[:5000]
-
+    assert "<title>Framework MTG - LAS / SLB - Framework MTG - LAS / SLB - Global Site</title>" in resp_entry.text[:5000]
 
 if __name__ == "__main__":
     main()
