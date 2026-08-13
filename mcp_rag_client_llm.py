@@ -38,7 +38,8 @@ logger = logging.getLogger("mcp_client_llm")
 
 # Initialisation du client HTTP avec le certificat de sécurité (optionnel)
 # Configuration
-PATH_CA = os.getenv("PATH_CA", "")
+PATH_CA = os.environ["PATH_CA"]
+
 logger.info(f"PATH_CA={PATH_CA}")
 
 # Déterminer la configuration SSL
@@ -48,6 +49,7 @@ if PATH_CA:
     if ca_path.exists():
         os.environ["SSL_CERT_FILE"] = PATH_CA
         os.environ["REQUESTS_CA_BUNDLE"] = PATH_CA
+        
         use_custom_ca = True
         logger.info(f"Using custom CA certificate: {PATH_CA}")
     else:
