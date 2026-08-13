@@ -21,13 +21,13 @@ Rôle : lors d'un `--index` / `index()`, si un fichier `AGENT.md` existe à la r
 - **Pas d'`AGENT.md`** à cette racine → aucune exclusion supplémentaire n'est appliquée.
 - **Avec `AGENT.md`** → décrivez une section dédiée aux exclusions RAG, par exemple :
 
-  ```markdown
+```markdown
   ## Exclusions RAG de recherche
 
   Exclure de l'indexation :
   - legacy
   - vendor/third_party
-  ```
+```
 
 - Le LLM ne cherche **que** cette section : le reste du fichier (règles de comportement d'agent, autres instructions...) est ignoré pour cet usage.
 - Les chemins renvoyés sont relatifs à la racine indexée.
@@ -61,6 +61,14 @@ cp .env.example .env
 | `MAX_CONTEXT_CHARS` | Non | Taille max du contexte LLM (défaut: `14000`) |
 | `MAX_EMBED_CHARS` | Non | Taille max d'un chunk pour l'embedding (défaut: `2000`) |
 | `MAX_HISTORY_TURNS` | Non | Tours de conversation mémorisés (défaut: `5`) |
+| `WEB_CRAWL_DEPTH` | Non | Profondeur max du crawl `--url` (défaut: `2`) |
+| `WEB_CRAWL_MAX_PAGES` | Non | Nombre max de pages crawlées par `--url` (défaut: `200`) |
+| `WEB_CRAWL_EXCLUDE_DIRS` | Non | Sous-chemins exclus du crawl (URLs complètes séparées par des virgules) |
+| `WEB_CRAWL_JSESSIONID` | Non* | Cookie de session pour un wiki protégé par authentification |
+| `WEB_CRAWL_OTHER_COOKIE_NAME` | Non* | Nom du 2ème cookie de session (si le wiki en requiert plusieurs) |
+| `WEB_CRAWL_OTHER_COOKIE_VALUE` | Non* | Valeur du 2ème cookie de session |
+
+\* Obligatoires uniquement si le wiki cible est protégé par authentification (SSO/OAuth/WAM).
 
 ---
 
@@ -69,6 +77,9 @@ cp .env.example .env
 ```bash
 # Indexer une codebase (à faire avant toute query) — un seul répertoire par appel
 python mcp_rag_server.py --index D:\mon\projet
+
+# Indexer une page wiki et ses liens (crawl récursif, profondeur configurable via .env)
+python mcp_rag_server.py --url https://wiki.corp.com/page-de-depart
 
 # Interroger la codebase (mode interactif avec mémoire)
 python mcp_rag_server.py --query
@@ -104,77 +115,3 @@ python mcp_rag_server.py --chroma_db D:\autre\chroma_db --index D:\mon\projet
 ## 📄 Documentation PDF
 
 Placez vos PDFs de documentation (specs, wiki, architecture) dans le répertoire `docs/` uniquement si vous souhaitez centraliser les fichiers. Ce n'est PAS obligatoire : l'indexation fonctionne sur tout répertoire que vous passez en argument à `--index`.
-
-```
-mcp_rag_server/
-    |-- docs/
-    |   |-- architecture.pdf
-    |   |-- specs.pdf
-    |   `-- ...
-    `-- ...
-```
-
-Les PDFs sont indexés automatiquement dès lors que `docs/` est un sous-répertoire (scan récursif) du répertoire passé à `--index`. Pour l'indexer isolément, lancez une commande `--index` dédiée sur ce dossier (`--index` n'accepte qu'un seul répertoire par appel). Le chunking se fait par section selon la table des matières (TOC), avec le numéro de page en métadonnée pour citer les sources dans les réponses LLM.
-
-> 💡 Les PDFs doivent être natifs (générés depuis Word, Confluence, wiki...), pas des scans.
-
----
-
-## 🏗️ Architecture
-
-```
-mcp_rag_server.py        <- Point d'entrée MCP + CLI
-    |-- indexer.py       <- Scan fichiers + chunking + indexation
-    |-- retriever.py     <- Recherche sémantique + construction prompt
-    |-- store.py         <- ChromaDB + embedding + cache SHA-256
-    |-- chunker.py       <- Chunking syntaxique Python (ast) et C++ (tree-sitter)
-    |-- chunker_pdf.py   <- Chunking PDF par section (TOC)
-    |-- embedder.py      <- Appels embedding avec retry
-    |-- mcp_rag_client_llm.py  <- Configuration LLM + client embedding
-    |-- docs/            <- PDFs de documentation à indexer
-    |-- chroma_db/       <- Base vectorielle persistante (créée automatiquement)
-    `-- logs/            <- Fichiers de log (créés automatiquement)
-```
-
-### Flux d'indexation
-
-```
-Répertoire
-    -> [indexer.py]   scan des fichiers .py / .cpp / .h / .pdf
-    -> [chunker.py]   découpage syntaxique par fonction/classe/section
-    -> [store.py]     cache SHA-256 (fichier inchangé = ignoré)
-                      embedding par batch -> ChromaDB
-```
-
-### Flux de query
-
-```
-Question
-    -> [retriever.py] embedding question -> top-K chunks similaires
-                      expansion des dépendances (symbols_referenced)
-                      construction du prompt avec contexte
-    -> [LLM]          réponse
-```
-
----
-
-## 🔍 Chunking
-
-**🐍 Python** : via `ast` (stdlib). Extrait fonctions, méthodes, classes avec leurs signatures. Les classes trop grandes sont remplacées par leur squelette (signatures seules).
-
-**⚙️ C++** : via `tree-sitter`. Extrait fonctions libres, méthodes, classes, structs avec noms qualifiés complets (`Namespace::Class::method`). Les fonctions trop grandes sont découpées en sous-chunks sur les frontières de blocs.
-
-**📄 PDF** : via `pymupdf`. Découpe par section selon la table des matières (TOC). Fallback par page si pas de TOC.
-
-Le cache SHA-256 garantit que seuls les fichiers modifiés sont re-embeddés lors d'une réindexation.
-
----
-
-## 📁 Répertoires exclus
-
-```python
-EXCLUDED_ROOT_DIRS = {"Delivery", "Build", "test", "tests", "OSS", "SDD"}
-EXCLUDED_DIRS      = {"compVideoLib", "lib_ModuleVideoGeneration", "__pycache__", ".git", ".venv", "venv", "node_modules"}
-```
-
-Modifiez `indexer.py` pour adapter à votre projet.
