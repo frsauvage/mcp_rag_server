@@ -33,7 +33,6 @@ dependencies = [
     "beautifulsoup4",
     "requests",
     "langchain-community",
-    "requests-negotiate-sspi"
 ]
 
 [project.optional-dependencies]
