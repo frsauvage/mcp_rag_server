@@ -25,4 +25,3 @@ openai>=2.40.0
 
 # HTML
 langchain-community>=0.0.20
-requests_negotiate_sspi
