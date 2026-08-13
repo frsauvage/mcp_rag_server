@@ -16,11 +16,14 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from langchain_core.messages import HumanMessage
+from bs4 import BeautifulSoup
+from langchain_community.document_loaders import RecursiveUrlLoader
 
 from chunker import chunk_file, ALL_EXTENSIONS, CodeChunk
+from chunker_web import crawl_and_chunk
 from store import CodeStore
 from mcp_rag_client_llm import llm_client
 from prompts import load_prompt
@@ -223,7 +226,43 @@ class Indexer:
             logger.warning(f"Réponse LLM inexploitable pour les exclusions AGENT.md ({e}) : {raw!r}")
             return frozenset()
 
+    @staticmethod
+    def _extract_text(html: str) -> str:
+        soup = BeautifulSoup(html, "html.parser")
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        return soup.get_text(separator="\n", strip=True)
 
+    async def index_url(self, url: str) -> IndexReport:
+        """
+        Crawle une URL racine et indexe le contenu dans doc_chunks, avec le même
+        mécanisme de cache par hash que pour les fichiers locaux.
+        Profondeur et nb max de pages configurables via .env (WEB_CRAWL_DEPTH,
+        WEB_CRAWL_MAX_PAGES) — voir chunker_web.py.
+        """
+        report = IndexReport(directory=url)
+
+        try:
+            chunks = await asyncio.to_thread(crawl_and_chunk, url)
+        except Exception as e:
+            logger.error(f"Crawl échoué pour {url}: {e}")
+            report.failed_files.append(url)
+            return report
+
+        report.files_found = len({c.file_path for c in chunks})
+        report.chunks_generated = len(chunks)
+
+        embedded = await asyncio.to_thread(self.store.upsert_chunks, chunks)
+        report.chunks_embedded = embedded
+        report.files_indexed = len({c.file_path for c in chunks})
+
+        stats = self.store.stats()
+        logger.info(
+            f"Indexation URL terminée — base : {stats['total_chunks']} chunks / "
+            f"{stats['total_files_indexed']} sources"
+        )
+        return report
+    
 def _is_under_excluded_prefix(rel_dir: Path, excluded_prefixes: frozenset[str]) -> bool:
     """True si rel_dir est égal à ou sous un des chemins de excluded_prefixes."""
     if not excluded_prefixes:

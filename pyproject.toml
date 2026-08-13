@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-rag-server"
-version = "2.2.0"
-description = "Serveur MCP avec RAG complet sur codebase Python/C++ (chunking syntaxique, ChromaDB, mistral-embed)"
+version = "2.2.1"
+description = "Serveur MCP avec RAG complet sur codebase Python/C++ (chunking syntaxique, ChromaDB, mistral-embed) et du HTML"
 requires-python = ">=3.11"
 
 dependencies = [
@@ -29,6 +29,11 @@ dependencies = [
     "pydantic",
     "openai",
     "pyyaml",
+
+    "beautifulsoup4",
+    "requests",
+    "langchain-community",
+    "requests-negotiate-sspi"
 ]
 
 [project.optional-dependencies]
@@ -43,12 +48,18 @@ dev = [
 # (pas de package Python structuré avec __init__.py)
 [tool.setuptools]
 py-modules = [
+    "chunker_code",
+    "chunker_cpp",
+    "chunker_md",
+    "chunker_pdf",
+    "chunker_proto",
+    "chunker_python",
+    "chunker_web",
     "chunker",
     "embedder",
     "indexer",
     "mcp_rag_server",
     "mcp_rag_client_llm",
-    "chunker_pdf",
     "prompts",
     "retriever",
     "store",

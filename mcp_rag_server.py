@@ -83,6 +83,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         description="Serveur MCP RAG - indexation et interrogation d'une codebase.",
     )
     parser.add_argument(
+        "--url", 
+        type=str, 
+        help="URL racine à indexer (crawl récursif)"
+    )
+    parser.add_argument(
         "--chroma_db",
         metavar="CHEMIN",
         default=os.getenv("CHROMA_PERSIST_DIR", "./chroma_db"),
@@ -351,6 +356,10 @@ if __name__ == "__main__":
             logger.info(f"Storage : {stats['persist_dir']}")
         asyncio.run(run_index())
 
+    if args.url:
+        report = asyncio.run(indexer.index_url(args.url))
+        print(report.summary())
+    
     if args.query:
         async def query():
             import time
@@ -406,7 +415,7 @@ if __name__ == "__main__":
 
         asyncio.run(query())
 
-    if not any([args.debug_chunk, args.clean, args.index, args.query]):
+    if not any([args.debug_chunk, args.url, args.clean, args.index, args.query]):
         # Aucune commande -> mode serveur MCP normal
         logger.info("Starting MCP RAG server...")
         asyncio.run(main())
