@@ -148,15 +148,13 @@ def crawl_and_chunk(
     une section trop longue est ensuite re-découpée par paragraphes (_split_text).
     """
     
-    if not WEB_CRAWL_JSESSIONID:
-        raise RuntimeError("no WEB_CRAWL_JSESSIONID configured in .env")
+    # Les cookies WAM ne sont nécessaires que pour crawler un site interne
+    # protégé par authentification — une page publique se crawle sans.
+    headers = None
+    if WEB_CRAWL_JSESSIONID and WEB_CRAWL_WAM_COOKIE_NAME:
+        cookie_header = f"JSESSIONID={WEB_CRAWL_JSESSIONID}; {WEB_CRAWL_WAM_COOKIE_NAME}={WEB_CRAWL_WAM_COOKIE_KEY}"
+        headers = {"Cookie": cookie_header}
 
-    if not WEB_CRAWL_WAM_COOKIE_NAME:
-        raise RuntimeError("no WEB_CRAWL_WAM_COOKIE_NAME configured in .env")
-
-    cookie_header = f"JSESSIONID={os.getenv("WEB_CRAWL_JSESSIONID")}; " \
-        f"{WEB_CRAWL_WAM_COOKIE_NAME}={os.getenv("WEB_CRAWL_WAM_COOKIE_KEY")}"
-    
     loader = RecursiveUrlLoader(
         url=root_url,
         max_depth=depth,
@@ -164,7 +162,7 @@ def crawl_and_chunk(
         prevent_outside=True,
         exclude_dirs=WEB_CRAWL_EXCLUDE_DIRS,
         timeout=10,
-        headers={"Cookie": cookie_header} or None,
+        headers=headers,
     )
     documents = loader.load()
     if max_pages is not None:
@@ -178,6 +176,10 @@ def crawl_and_chunk(
         text = doc.page_content.strip()
 
         if len(text) < MIN_SECTION_CHARS:
+            continue
+
+        if _is_auth_wall(text):
+            logger.warning(f"Page ignorée (mur d'authentification détecté) : {source}")
             continue
 
         sections = _split_into_sections(text, default_title=page_title)

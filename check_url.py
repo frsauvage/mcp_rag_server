@@ -5,7 +5,7 @@ check_url.py — Test minimal : authentification WAM + accès à la page d'entr�
 Usage :
     python check_url.py
 
-Lit WEB_CRAWL_USER, WEB_CRAWL_LOGIN_URL, PATH_CA depuis .env, demande le mot
+Lit WEB_CRAWL_USER, WEB_CRAWL_ROOT_URL, PATH_CA depuis .env, demande le mot
 de passe en saisie masquée, tente le login, puis récupère l'URL d'entrée
 (demandée en argument ou en input) avec le cookie de session obtenu.
 Affiche juste assez pour savoir si ça marche, sans rien indexer.
@@ -21,12 +21,11 @@ load_dotenv(encoding="utf-8")
 
 PATH_CA = os.getenv("PATH_CA")
 WEB_CRAWL_USER = os.getenv("WEB_CRAWL_USER")
-WEB_CRAWL_LOGIN_URL = os.getenv("WEB_CRAWL_LOGIN_URL")
 WEB_CRAWL_JSESSIONID = os.getenv("WEB_CRAWL_JSESSIONID")
 WEB_CRAWL_WAM_COOKIE_NAME = os.getenv("WEB_CRAWL_WAM_COOKIE_NAME")
 WEB_CRAWL_WAM_COOKIE_KEY = os.getenv("WEB_CRAWL_WAM_COOKIE_KEY")
 WEB_CRAWL_DOMAIN = os.getenv("WEB_CRAWL_DOMAIN")
-WEB_CRAWL_LOGIN_URL = os.getenv("WEB_CRAWL_LOGIN_URL")
+WEB_CRAWL_ROOT_URL = os.getenv("WEB_CRAWL_ROOT_URL")
 
 AUTH_WALL_MARKERS = (
     "user couldn't be identified",
@@ -49,7 +48,7 @@ def main():
     session.cookies.set("JSESSIONID", WEB_CRAWL_JSESSIONID, domain=WEB_CRAWL_DOMAIN)
     session.cookies.set(WEB_CRAWL_WAM_COOKIE_NAME, WEB_CRAWL_WAM_COOKIE_KEY, domain=WEB_CRAWL_DOMAIN)
 
-    entry_url = WEB_CRAWL_LOGIN_URL
+    entry_url = WEB_CRAWL_ROOT_URL
 
     resp_entry = session.get(entry_url, timeout=10)
 
