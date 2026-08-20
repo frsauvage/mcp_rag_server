@@ -82,10 +82,10 @@ python mcp_rag_server.py --index D:\mon\projet
 python mcp_rag_server.py --url https://wiki.corp.com/page-de-depart
 
 # Interroger la codebase (mode interactif avec mémoire)
-python mcp_rag_server.py --query
+python mcp_rag_server.py --query --chroma_db D:\mon\projet\chroma_db
 
 # Vider la base (pour réindexer from scratch)
-python mcp_rag_server.py --clean
+python mcp_rag_server.py --clean --chroma_db D:\mon\projet\chroma_db
 
 # Debugger le chunking d'un fichier
 python mcp_rag_server.py --debug-chunk mon_fichier.cpp
@@ -95,6 +95,9 @@ python mcp_rag_server.py
 
 # Utiliser une base ChromaDB différente (optionnel, valable pour toutes les commandes)
 python mcp_rag_server.py --chroma_db D:\autre\chroma_db --index D:\mon\projet
+
+python mcp_rag_server.py --url https://wiki.corp.thales/spaces/TOSAMTG/pages/494308552/II.A.5+Module+Ethernet --chroma_db D:\mon\projet\chroma_db
+
 ```
 
 > ⚠️ **Important** : l'indexation peut prendre plusieurs minutes sur une large codebase.
@@ -107,6 +110,7 @@ python mcp_rag_server.py --chroma_db D:\autre\chroma_db --index D:\mon\projet
 | Outil | Description |
 |---|---|
 | `index` | Indexe une codebase dans ChromaDB (avec cache SHA-256), n'écrase pas les données existantes |
+| `url`   | Indexe une url dans ChromaDB, n'écrase pas les données existantes  |
 | `query` | Question en langage naturel sur le code indexé |
 | `clean` | Vide complètement la base vectorielle (destructif) |
 
