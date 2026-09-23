@@ -74,9 +74,12 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 def _build_arg_parser() -> argparse.ArgumentParser:
     """Construit le parseur d'arguments CLI.
 
-    --chroma_db est une option globale et independante des commandes
-    (index/clean/query/debug-chunk), ce qui evite toute confusion avec
-    leurs propres arguments (ex: le repertoire de --index).
+    --chroma_db est une option globale, explicitement independante des
+    commandes (index/clean/query/debug-chunk) au niveau argparse. Sa valeur
+    par defaut est neanmoins resolue apres coup (voir plus bas) : elle
+    retombe sur <REPERTOIRE de --index>/chroma_db si ni --chroma_db ni
+    $CHROMA_PERSIST_DIR ne sont fournis, pour que l'indexation d'un nouveau
+    projet cree sa base a cote de lui sans configuration supplementaire.
     """
     parser = argparse.ArgumentParser(
         prog="mcp_rag_server.py",
@@ -91,8 +94,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--chroma_db",
         metavar="CHEMIN",
-        default=os.getenv("CHROMA_PERSIST_DIR", "./chroma_db"),
-        help="Dossier de la base ChromaDB (defaut : $CHROMA_PERSIST_DIR ou ./chroma_db)",
+        default=None,
+        help=(
+            "Dossier de la base ChromaDB (defaut : $CHROMA_PERSIST_DIR ; sinon, "
+            "avec --index, <REPERTOIRE>/chroma_db ; sinon ./chroma_db)"
+        ),
     )
     commands = parser.add_mutually_exclusive_group()
     commands.add_argument(
@@ -118,6 +124,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 args = _build_arg_parser().parse_args()
+
+if args.chroma_db is None:
+    if os.getenv("CHROMA_PERSIST_DIR"):
+        args.chroma_db = os.getenv("CHROMA_PERSIST_DIR")
+    elif args.index:
+        args.chroma_db = str(Path(args.index) / "chroma_db")
+    else:
+        args.chroma_db = "./chroma_db"
 
 # ---------------------------------------------------------------------------
 # Utilitaires

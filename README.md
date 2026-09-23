@@ -60,7 +60,7 @@ cp .env.example .env
 | `EMBED_API_KEY_TEXT` | Non | Clé API pour l'embedding TEXTE (défaut: `API_KEY`) |
 | `PATH_CA` | Non | Chemin vers un certificat SSL custom (défaut: certificats système) |
 | `PATH_LOGS` | Non | Répertoire des logs (défaut: `./logs`) |
-| `CHROMA_PERSIST_DIR` | Non | Répertoire ChromaDB (défaut: `./chroma_db`, surchargeable via `--chroma_db`) |
+| `CHROMA_PERSIST_DIR` | Non | Répertoire ChromaDB, surchargeable via `--chroma_db` (défaut : `<REPERTOIRE>/chroma_db` avec `--index`, sinon `./chroma_db`) |
 | `EMBED_BATCH_SIZE` | Non | Taille de batch embedding (défaut: `128`) |
 | `RETRIEVAL_TOP_K` | Non | Chunks par recherche (défaut: `10`) |
 | `MAX_RERANK` | Non | Résultats récupérés avant reranking (défaut: `500`) |
@@ -83,6 +83,7 @@ cp .env.example .env
 
 ```bash
 # Indexer une codebase (à faire avant toute query) — un seul répertoire par appel
+# Sans --chroma_db, la base est créée par défaut dans D:\mon\projet\chroma_db
 python mcp_rag_server.py --index D:\mon\projet
 
 # Indexer une page wiki et ses liens (crawl récursif, profondeur configurable via .env)
