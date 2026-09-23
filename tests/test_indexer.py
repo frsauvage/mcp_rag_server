@@ -5,6 +5,7 @@ import pytest
 
 from indexer import (
     EXCLUDED_FILENAMES,
+    EXCLUDED_PATTERNS,
     EXCLUDED_ROOT_DIRS,
     Indexer,
     IndexReport,
@@ -110,6 +111,29 @@ class TestScanFiles:
         names = {f.name for f in files}
         assert "code.py" not in names
         assert "good.py" in names
+
+    def test_excludes_pattern_dirs(self, tmp_path):
+        subdir = tmp_path / "src" / "generated"
+        subdir.mkdir(parents=True)
+        (subdir / "code.py").write_text("x = 1\n" * 10)
+        (tmp_path / "src" / "good.py").write_text("x = 1\n" * 10)
+        indexer = Indexer(self._make_store())
+        files = indexer._scan_files(tmp_path)
+        names = {f.name for f in files}
+        assert "code.py" not in names
+        assert "good.py" in names
+
+    def test_excludes_pattern_filename(self, tmp_path):
+        (tmp_path / "_version.py").write_text("x = 1\n" * 10)
+        (tmp_path / "good.py").write_text("x = 1\n" * 10)
+        indexer = Indexer(self._make_store())
+        files = indexer._scan_files(tmp_path)
+        names = {f.name for f in files}
+        assert "_version.py" not in names
+        assert "good.py" in names
+
+    def test_excluded_patterns_not_empty(self):
+        assert EXCLUDED_PATTERNS
 
     def test_includes_subdirs(self, tmp_path):
         subdir = tmp_path / "src"

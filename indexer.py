@@ -11,6 +11,7 @@ Ce module est appelé exclusivement par le handler MCP "index_codebase".
 Il ne contient pas de logique d'embedding ni de retrieval.
 """
 import asyncio
+import fnmatch
 import json
 import logging
 import re
@@ -20,7 +21,6 @@ from typing import List, Optional
 
 from langchain_core.messages import HumanMessage
 from bs4 import BeautifulSoup
-from langchain_community.document_loaders import RecursiveUrlLoader
 
 from chunker import chunk_file, ALL_EXTENSIONS, CodeChunk
 from chunker_web import crawl_and_chunk
@@ -36,7 +36,19 @@ EXCLUDED_FILENAMES = {
     "__init__.py",
 }
 
-EXCLUDED_PATTERNS = {"**/generated/**", "**/migrations/**", "**/_version.py", "**/rtbx_**"}
+EXCLUDED_PATTERNS = {
+    "**/generated/**", 
+    "**/migrations/**", 
+    "**/_version.py", 
+    "**/chrom_db/**", 
+    "**/chromdb/**", 
+    "**/.git/**", 
+    "**/.continue/**",
+    "**/venv/**",
+    "**/**egg-info/**",    
+    "**/.vscode/**",    
+    "**/**cache**/**"
+}
 
 EXCLUDED_DIRS = {"compVideoLib", "lib_ModuleVideoGeneration", "__pycache__", ".git", ".venv", "venv", "node_modules"}
 EXCLUDED_ROOT_DIRS = {"Delivery", "Build", "test", "tests", "OSS", "SDD"}
@@ -169,6 +181,7 @@ class Indexer:
                 any(part.lower() in EXCLUDED_DIRS for part in rel.parts)
                 or rel.parts[0] in EXCLUDED_ROOT_DIRS
                 or _is_under_excluded_prefix(rel.parent, extra_excluded_prefixes)
+                or _matches_excluded_pattern(rel.parts, EXCLUDED_PATTERNS)
             ):
                 continue
             result.append(p)
@@ -272,4 +285,25 @@ def _is_under_excluded_prefix(rel_dir: Path, excluded_prefixes: frozenset[str]) 
         prefix_parts = Path(prefix).parts
         if parts[:len(prefix_parts)] == prefix_parts:
             return True
+    return False
+
+
+def _matches_excluded_pattern(rel_parts: tuple[str, ...], patterns: set[str]) -> bool:
+    """
+    True si rel_parts (segments du chemin relatif) matche un des glob patterns
+    de EXCLUDED_PATTERNS (ex. "**/generated/**", "**/_version.py").
+
+    Les segments "**" et vides sont ignorés : seuls les segments "coeur" du
+    pattern (ex. "generated") sont comparés, via fnmatch, à une sous-séquence
+    contiguë des segments du chemin (insensible à la casse).
+    """
+    parts_lower = [p.lower() for p in rel_parts]
+    for pattern in patterns:
+        core = [seg.lower() for seg in pattern.split("/") if seg and seg != "**"]
+        if not core:
+            continue
+        n = len(core)
+        for i in range(len(parts_lower) - n + 1):
+            if all(fnmatch.fnmatch(parts_lower[i + j], core[j]) for j in range(n)):
+                return True
     return False
