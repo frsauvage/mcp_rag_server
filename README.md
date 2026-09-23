@@ -52,6 +52,12 @@ cp .env.example .env
 | `LLM_MODEL` | ✅ | Modèle LLM de génération |
 | `EMBED_BASE_URL` | ✅ | URL de l'endpoint embedding |
 | `EMBED_MODEL` | ✅ | Modèle d'embedding (ex: bge-m3) |
+| `EMBED_MODEL_CODE` | Non | Modèle d'embedding spécialisé pour Python/C++/Proto (défaut: `EMBED_MODEL`) |
+| `EMBED_BASE_URL_CODE` | Non | URL de l'endpoint embedding CODE (défaut: `EMBED_BASE_URL`) |
+| `EMBED_API_KEY_CODE` | Non | Clé API pour l'embedding CODE (défaut: `API_KEY`) |
+| `EMBED_MODEL_TEXT` | Non | Modèle d'embedding pour PDF/Markdown (défaut: `EMBED_MODEL`) |
+| `EMBED_BASE_URL_TEXT` | Non | URL de l'endpoint embedding TEXTE (défaut: `EMBED_BASE_URL`) |
+| `EMBED_API_KEY_TEXT` | Non | Clé API pour l'embedding TEXTE (défaut: `API_KEY`) |
 | `PATH_CA` | Non | Chemin vers un certificat SSL custom (défaut: certificats système) |
 | `PATH_LOGS` | Non | Répertoire des logs (défaut: `./logs`) |
 | `CHROMA_PERSIST_DIR` | Non | Répertoire ChromaDB (défaut: `./chroma_db`, surchargeable via `--chroma_db`) |
@@ -65,8 +71,8 @@ cp .env.example .env
 | `WEB_CRAWL_MAX_PAGES` | Non | Nombre max de pages crawlées par `--url` (défaut: `200`) |
 | `WEB_CRAWL_EXCLUDE_DIRS` | Non | Sous-chemins exclus du crawl (URLs complètes séparées par des virgules) |
 | `WEB_CRAWL_JSESSIONID` | Non* | Cookie de session pour un wiki protégé par authentification |
-| `WEB_CRAWL_OTHER_COOKIE_NAME` | Non* | Nom du 2ème cookie de session (si le wiki en requiert plusieurs) |
-| `WEB_CRAWL_OTHER_COOKIE_VALUE` | Non* | Valeur du 2ème cookie de session |
+| `WEB_CRAWL_WAM_COOKIE_NAME` | Non* | Nom du 2ème cookie de session (si le wiki en requiert plusieurs) |
+| `WEB_CRAWL_WAM_COOKIE_KEY` | Non* | Valeur du 2ème cookie de session |
 
 \* Obligatoires uniquement si le wiki cible est protégé par authentification (SSO/OAuth/WAM).
 
