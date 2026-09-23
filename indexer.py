@@ -47,6 +47,7 @@ EXCLUDED_PATTERNS = {
     "**/venv/**",
     "**/**egg-info/**",    
     "**/.vscode/**",    
+    "**/logs/**",    
     "**/**cache**/**"
 }
 
