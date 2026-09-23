@@ -67,6 +67,7 @@ cp .env.example .env
 | `MAX_CONTEXT_CHARS` | Non | Taille max du contexte LLM (défaut: `14000`) |
 | `MAX_EMBED_CHARS` | Non | Taille max d'un chunk pour l'embedding (défaut: `2000`) |
 | `MAX_HISTORY_TURNS` | Non | Tours de conversation mémorisés (défaut: `5`) |
+| `WEB_CRAWL_ROOT_URL` | Non | URL racine à crawler, utilisée si `--url` n'est pas passé en CLI |
 | `WEB_CRAWL_DEPTH` | Non | Profondeur max du crawl `--url` (défaut: `2`) |
 | `WEB_CRAWL_MAX_PAGES` | Non | Nombre max de pages crawlées par `--url` (défaut: `200`) |
 | `WEB_CRAWL_EXCLUDE_DIRS` | Non | Sous-chemins exclus du crawl (URLs complètes séparées par des virgules) |

@@ -83,9 +83,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         description="Serveur MCP RAG - indexation et interrogation d'une codebase.",
     )
     parser.add_argument(
-        "--url", 
-        type=str, 
-        help="URL racine à indexer (crawl récursif)"
+        "--url",
+        type=str,
+        default=os.getenv("WEB_CRAWL_ROOT_URL"),
+        help="URL racine à indexer (crawl récursif ; defaut : $WEB_CRAWL_ROOT_URL)"
     )
     parser.add_argument(
         "--chroma_db",
