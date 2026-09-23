@@ -1,7 +1,7 @@
 # MCP RAG Server - Dépendances
 
 # Framework MCP
-mcp>=1.0.0
+mcp>=2.0.0
 
 # Embeddings et vectorisation
 chromadb>=1.5.9

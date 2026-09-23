@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 
 dependencies = [
     # MCP
-    "mcp",
+    "mcp>=2.0.0",
 
     # LangChain + Mistral
     "langchain-openai",
