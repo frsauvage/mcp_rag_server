@@ -6,7 +6,6 @@ mcp>=1.0.0
 # Embeddings et vectorisation
 chromadb>=1.5.9
 langchain-core>=0.1.0
-langchain-text-splitters>=0.0.1
 
 # LLM clients
 langchain-openai>=1.4.1
