@@ -1,4 +1,4 @@
-# 🚀 Installation Guide — MCP RAG Server (Mistral)
+# 🚀 Installation Guide — MCP RAG Server
 
 ## 📌 Overview
 
@@ -32,7 +32,7 @@ cd mcp_rag_server
 
 ## 📥 Manual installation
 
-- Download Python 3.13+
+- Download Python 3.11+
 - Unzip anywhere
 - Ensure python.exe executable is accessible
 
@@ -119,7 +119,7 @@ mcpServers:
     args:
   - ${MCP_RAG_PROJECT_ROOT}\mcp_rag_server.py
     env:
-      API_KEY: ${secrets.MISTRAL_API_KEY}
+      API_KEY: ${secrets.API_KEY}
       MCP_RAG_PROJECT_ROOT: ${secrets.MCP_RAG_PROJECT_ROOT}
 ```
 
@@ -145,11 +145,11 @@ mcpServers:
 
 - Answers questions using RAG over indexed code
 
-# 📁 AGENT.md / MISTRAL.md (target codebase)
+# 📁 AGENT.md (target codebase)
 
-An `AGENT.md` or `MISTRAL.md` file placed at the root of the **target directory** (the codebase you pass to `index()` / `--index`) must list the directories to include in the indexation.
+An `AGENT.md` file placed at the root of the **target directory** (the codebase you pass to `index()` / `--index`) is read and submitted to the LLM to extract directories to **exclude** from RAG indexing, in addition to `indexer.py`'s default exclusions. Only the exact filename `AGENT.md` is recognized.
 
-⚠️ This file describes the CIBLE (the codebase being indexed), not the MCP RAG server itself.
+⚠️ This file describes the CIBLE (the codebase being indexed), not the MCP RAG server itself. No `AGENT.md` at that root → no additional exclusions are applied.
 
 # 🔄 Workflows
 
@@ -178,9 +178,6 @@ query(question)
 
 - **Clean flow** :
   ![Clean flow](images/flux_nettoyage.png)
-
-- **Indexation flow** :
-  ![Indexation flow](images/flux_indexation.png)
 
 - **Request flow** :
   ![Request flow](images/flux_requete.png)
