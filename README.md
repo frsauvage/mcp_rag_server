@@ -60,7 +60,6 @@ cp .env.example .env
 | `EMBED_API_KEY_TEXT` | Non | Clé API pour l'embedding TEXTE (défaut: `API_KEY`) |
 | `PATH_CA` | Non | Chemin vers un certificat SSL custom (défaut: certificats système) |
 | `PATH_LOGS` | Non | Répertoire des logs (défaut: `./logs`) |
-| `CHROMA_PERSIST_DIR` | Non | Répertoire ChromaDB, surchargeable via `--chroma_db` (défaut : `<REPERTOIRE>/chroma_db` avec `--index`/`--query <REPERTOIRE>`, sinon `./chroma_db`) |
 | `EMBED_BATCH_SIZE` | Non | Taille de batch embedding (défaut: `128`) |
 | `RETRIEVAL_TOP_K` | Non | Chunks par recherche (défaut: `10`) |
 | `MAX_RERANK` | Non | Résultats récupérés avant reranking (défaut: `500`) |
@@ -90,10 +89,8 @@ python mcp_rag_server.py --index D:\mon\projet
 python mcp_rag_server.py --url https://wiki.corp.com/page-de-depart
 
 # Interroger la codebase (mode interactif avec mémoire)
-# --query <REPERTOIRE> resout aussi automatiquement chroma_db en <REPERTOIRE>\chroma_db
+# Le répertoire est obligatoire — résout automatiquement chroma_db en D:\mon\projet\chroma_db
 python mcp_rag_server.py --query D:\mon\projet
-# Equivalent explicite :
-python mcp_rag_server.py --query --chroma_db D:\mon\projet\chroma_db
 
 # Vider la base (pour réindexer from scratch)
 python mcp_rag_server.py --clean --chroma_db D:\mon\projet\chroma_db
