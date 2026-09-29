@@ -88,8 +88,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--url",
         type=str,
-        default=os.getenv("WEB_CRAWL_ROOT_URL"),
-        help="URL racine à indexer (crawl récursif ; defaut : $WEB_CRAWL_ROOT_URL)"
+        default=None,
+        help=(
+            "URL racine à indexer (crawl récursif ; defaut : $WEB_CRAWL_ROOT_URL, "
+            "uniquement si aucune autre commande n'est demandée)"
+        ),
     )
     parser.add_argument(
         "--chroma_db",
@@ -124,6 +127,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 args = _build_arg_parser().parse_args()
+
+if args.url is None and not any([args.index, args.clean, args.query, args.debug_chunk]):
+    args.url = os.getenv("WEB_CRAWL_ROOT_URL")
 
 if args.chroma_db is None:
     if os.getenv("CHROMA_PERSIST_DIR"):
@@ -335,24 +341,6 @@ async def main():
         )
 
 if __name__ == "__main__":
-
-    if args.debug_chunk:
-        # python mcp_rag_server.py --debug-chunk chemin/fichier.py
-        from chunker import chunk_file
-        from chunker_code import CodeChunk
-        from chunker_pdf import DocChunk
-        path = Path(args.debug_chunk)
-        chunks = chunk_file(path, path.parent)
-        logger.info(f"{len(chunks)} chunks trouves dans {path.name}")
-        for c in chunks:
-            if isinstance(c, CodeChunk):
-                logger.info(f"  [{c.chunk_type:12}] {c.symbol_name:40} L{c.start_line}-{c.end_line}")
-                if hasattr(c, 'symbols_referenced') and c.symbols_referenced:
-                    logger.info(f"    -> refs: {', '.join(c.symbols_referenced)}")
-            elif isinstance(c, DocChunk):
-                logger.info(f"  [{c.chunk_type:12}] {c.symbol_name:40} P{c.page_start}-{c.page_end}")
-            else:
-                logger.info(f"  [{c.chunk_type:12}] {c.symbol_name:40}")
 
     if args.clean:
         logger.info("Cleaning vectorial store...")
