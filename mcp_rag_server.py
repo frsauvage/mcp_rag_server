@@ -75,12 +75,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     """Construit le parseur d'arguments CLI.
 
     --chroma_db est une option globale, explicitement independante des
-    commandes (index/clean/query/debug-chunk) au niveau argparse. Sa valeur
-    par defaut est neanmoins resolue apres coup (voir plus bas) : elle
-    retombe sur <REPERTOIRE>/chroma_db, REPERTOIRE etant celui passe a
-    --index ou --query (tous deux obligatoires), pour que la base vive
-    a cote du projet cible sans configuration supplementaire. Sans --index
-    ni --query (ex: --clean, --debug-chunk), retombe sur ./chroma_db.
+    commandes (index/clean/query) au niveau argparse. Sa valeur par defaut
+    est neanmoins resolue apres coup (voir plus bas) : elle retombe sur
+    <REPERTOIRE>/chroma_db, REPERTOIRE etant celui passe a --index ou
+    --query (tous deux obligatoires), pour que la base vive a cote du
+    projet cible sans configuration supplementaire. Sans --index ni
+    --query (ex: --clean), retombe sur ./chroma_db.
     """
     parser = argparse.ArgumentParser(
         prog="mcp_rag_server.py",
@@ -123,16 +123,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "--chroma_db en <REPERTOIRE>/chroma_db"
         ),
     )
-    commands.add_argument(
-        "--debug-chunk",
-        metavar="FICHIER",
-        help="Affiche le resultat du chunking pour un fichier (debug)",
-    )
     return parser
 
 args = _build_arg_parser().parse_args()
 
-if args.url is None and not any([args.index, args.clean, args.query, args.debug_chunk]):
+if args.url is None and not any([args.index, args.clean, args.query]):
     args.url = os.getenv("WEB_CRAWL_ROOT_URL")
 
 _target_dir = args.index or args.query
@@ -422,7 +417,7 @@ if __name__ == "__main__":
 
         asyncio.run(query())
 
-    if not any([args.debug_chunk, args.url, args.clean, args.index, args.query]):
+    if not any([args.url, args.clean, args.index, args.query]):
         # Aucune commande -> mode serveur MCP normal
         logger.info("Starting MCP RAG server...")
         asyncio.run(main())
