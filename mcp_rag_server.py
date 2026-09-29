@@ -77,9 +77,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     --chroma_db est une option globale, explicitement independante des
     commandes (index/clean/query/debug-chunk) au niveau argparse. Sa valeur
     par defaut est neanmoins resolue apres coup (voir plus bas) : elle
-    retombe sur <REPERTOIRE de --index>/chroma_db si ni --chroma_db ni
-    $CHROMA_PERSIST_DIR ne sont fournis, pour que l'indexation d'un nouveau
-    projet cree sa base a cote de lui sans configuration supplementaire.
+    retombe sur <REPERTOIRE>/chroma_db si ni --chroma_db ni
+    $CHROMA_PERSIST_DIR ne sont fournis et qu'un repertoire est passe a
+    --index ou --query, pour que l'indexation (ou l'interrogation) d'un
+    projet utilise sa base a cote de lui sans configuration supplementaire.
     """
     parser = argparse.ArgumentParser(
         prog="mcp_rag_server.py",
@@ -116,8 +117,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     commands.add_argument(
         "--query",
-        action="store_true",
-        help="Lance une session RAG interactive",
+        metavar="REPERTOIRE",
+        nargs="?",
+        const=True,
+        default=None,
+        help=(
+            "Lance une session RAG interactive ; --query <REPERTOIRE> resout "
+            "automatiquement --chroma_db en <REPERTOIRE>/chroma_db"
+        ),
     )
     commands.add_argument(
         "--debug-chunk",
@@ -131,11 +138,15 @@ args = _build_arg_parser().parse_args()
 if args.url is None and not any([args.index, args.clean, args.query, args.debug_chunk]):
     args.url = os.getenv("WEB_CRAWL_ROOT_URL")
 
+_query_dir = args.query if isinstance(args.query, str) else None
+
 if args.chroma_db is None:
     if os.getenv("CHROMA_PERSIST_DIR"):
         args.chroma_db = os.getenv("CHROMA_PERSIST_DIR")
     elif args.index:
         args.chroma_db = str(Path(args.index) / "chroma_db")
+    elif _query_dir:
+        args.chroma_db = str(Path(_query_dir) / "chroma_db")
     else:
         args.chroma_db = "./chroma_db"
 
