@@ -18,6 +18,7 @@ dependencies = [
 
     # ChromaDB (base vectorielle avec persistance SQLite)
     "chromadb",
+    "rank-bm25",
 
     # Chunking C++
     "tree-sitter",

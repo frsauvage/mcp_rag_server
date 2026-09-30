@@ -1,11 +1,12 @@
 # MCP RAG Server - Dépendances
 
 # Framework MCP
-mcp>=2.0.0
+mcp>=2.2.0
 
 # Embeddings et vectorisation
 chromadb>=1.5.9
 langchain-core>=0.1.0
+rank-bm25>=0.2.2
 
 # LLM clients
 langchain-openai>=1.4.1
