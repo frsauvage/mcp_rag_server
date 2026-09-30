@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-rag-server"
-version = "2.2.1"
+version = "2.2.3"
 description = "Serveur MCP avec RAG complet sur codebase Python/C++ (chunking syntaxique, ChromaDB, mistral-embed) et du HTML"
 requires-python = ">=3.11"
 
 dependencies = [
     # MCP
-    "mcp>=2.0.0",
+    "mcp>=2.2.0",
 
     # LangChain + Mistral
     "langchain-openai",
