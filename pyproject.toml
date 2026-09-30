@@ -61,7 +61,7 @@ py-modules = [
     "chunker",
     "embedder",
     "indexer",
-    "mcp_rag_server",
+    "main",
     "mcp_rag_client_llm",
     "prompts",
     "retriever",
